@@ -117,16 +117,16 @@ const ROLE_PAGES={
   staffmgr:["dashboard","allprojects","loghours","myhours","myprofile","staffskills","editproject","intake"],
   faculty:["dashboard","allprojects","facultyreporting","myprofile","staffskills","editproject","intake"],
   fund:["dashboard","allprojects","billing","fund","staffskills"],
-  admin:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","facultydb","staffview","budgets","approvals","editproject","intake"],
-  assocdir:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","facultydb","staffview","budgets","approvals","editproject","intake"],
-  director:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","facultydb","staffview","budgets","approvals","editproject","intake"]
+  admin:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","editproject","intake"],
+  assocdir:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","editproject","intake"],
+  director:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","editproject","intake"]
 };
 const PAGE_LABELS={
   pidashboard:"My Dashboard",dashboard:"Dashboard",myprojects:"My Projects",allprojects:"All Projects",
   loghours:"Log Hours",myhours:"My Hours",facultyreporting:"Faculty Reporting",
   billing:"Hours & Billing",fund:"Fund Manager Queue",staffview:"Staff Overview",
   budgets:"Budget Management",approvals:"Pending Approvals",editproject:"Edit Project",
-  intake:"Submit Project",mystatus:"My Submissions",myprofile:"My Profile",staffskills:"Staff Skills",facultydb:"Faculty Database"
+  intake:"Submit Project",mystatus:"My Submissions",myprofile:"My Profile",staffskills:"Staff Skills",availability:"Staff Availability",facultydb:"Faculty Database"
 };
 const PROF_BG={Beginner:"#E6F1FB",Proficient:"#EAF3DE",Expert:"#EEEDFE"};
 const PROF_COL={Beginner:"#185FA5",Proficient:"#3B6D11",Expert:"#3C3489"};
@@ -541,7 +541,7 @@ function renderPage(p) {
     staffview: buildStaffOverview, budgets: buildBudgets,
     approvals: buildApprovals, editproject: buildEditProject,
     intake: buildIntake, mystatus: buildMyStatus,
-    myprofile: buildMyProfile, staffskills: buildStaffSkills, facultydb: buildFacultyDB
+    myprofile: buildMyProfile, staffskills: buildStaffSkills, availability: buildAvailability, facultydb: buildFacultyDB
   };
   try {
     (fns[p] || buildIntake)();
@@ -2055,6 +2055,316 @@ function rejectSkillRequest(id){
   req.status='rejected'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
   saveRecord('update',req,'skillRequests');
   buildStaffSkills();
+}
+
+
+// ── STAFF AVAILABILITY DASHBOARD ──────────────────────────────────────────
+function buildAvailability() {
+  var q = curQ(), yr = curYr();
+  var FTE_HRS = 520; // hours per quarter at 100% FTE
+
+  // Build per-staff summary
+  var staffData = STAFF.map(function(name) {
+    // Assigned % effort from active pct projects
+    var pctProjects = projects.filter(function(p) {
+      return p.type === 'pct' &&
+        ['active','upcoming'].indexOf(p.status) > -1 &&
+        (p.team||[]).some(function(m) { return m.name === name; });
+    });
+    var assignedPct = pctProjects.reduce(function(a, p) {
+      var m = (p.team||[]).filter(function(m) { return m.name === name; })[0];
+      return a + (m && m.pct ? Number(m.pct) : 0);
+    }, 0);
+
+    // Active projects of all types
+    var allActive = projects.filter(function(p) {
+      return ['active','upcoming'].indexOf(p.status) > -1 &&
+        (p.team||[]).some(function(m) { return m.name === name; });
+    });
+
+    // Logged hours this quarter (all types)
+    var qHrs = hoursData.filter(function(h) {
+      return h.staffName === name && h.quarter === q && h.year === yr;
+    }).reduce(function(a, h) { return a + h.hours; }, 0);
+
+    var loggedPct = Math.round(qHrs / FTE_HRS * 100);
+
+    // Hours by project this quarter
+    var byProject = {};
+    hoursData.filter(function(h) {
+      return h.staffName === name && h.quarter === q && h.year === yr;
+    }).forEach(function(h) {
+      if (!byProject[h.projectId]) byProject[h.projectId] = 0;
+      byProject[h.projectId] += h.hours;
+    });
+
+    return {
+      name: name,
+      assignedPct: assignedPct,
+      loggedPct: loggedPct,
+      loggedHrs: qHrs,
+      activeProjects: allActive.length,
+      pctProjects: pctProjects.length,
+      byProject: byProject
+    };
+  });
+
+  var h = '<div class="card">';
+  h += '<div class="section-hdr" style="margin-bottom:1rem">';
+  h += '<span class="card-title" style="margin:0">Staff availability &mdash; ' + q + ' ' + yr + '</span>';
+  h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+  h += '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:12px">';
+  h += '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#639922;display:inline-block"></span>90-100%</span>';
+  h += '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#EF9F27;display:inline-block"></span>70-89%</span>';
+  h += '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#E87722;display:inline-block"></span>50-69%</span>';
+  h += '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#E24B4A;display:inline-block"></span>&lt;50%</span>';
+  h += '<span style="display:inline-flex;align-items:center;gap:4px"><span style="width:10px;height:10px;border-radius:50%;background:#3C3489;display:inline-block"></span>&gt;100%</span>';
+  h += '</div>';
+  h += '<select id="availFilter" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="all">All staff</option><option value="under50">Needs work (&lt;50%)</option><option value="bandwidth">Has bandwidth (&lt;90%)</option><option value="over">Oversubscribed (&gt;100%)</option></select>';
+  h += '</div></div>';
+
+  // Summary metrics
+  var over = staffData.filter(function(d) { return d.loggedPct > 100; }).length;
+  var green = staffData.filter(function(d) { return d.loggedPct >= 90 && d.loggedPct <= 100; }).length;
+  var yellow = staffData.filter(function(d) { return d.loggedPct >= 70 && d.loggedPct < 90; }).length;
+  var orange = staffData.filter(function(d) { return d.loggedPct >= 50 && d.loggedPct < 70; }).length;
+  var red = staffData.filter(function(d) { return d.loggedPct < 50; }).length;
+
+  h += '<div class="metrics" style="margin-bottom:1.5rem">';
+  h += '<div class="metric"><div class="metric-label">Full utilization</div><div class="metric-value" style="color:#639922">' + green + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Has bandwidth</div><div class="metric-value" style="color:#EF9F27">' + (yellow+orange) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Needs work</div><div class="metric-value mv-red">' + red + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Oversubscribed</div><div class="metric-value mv-purple">' + over + '</div></div>';
+  h += '</div>';
+
+  h += '<div id="availGrid">' + buildAvailGrid(staffData, 'all') + '</div></div>';
+  sh('pageContainer', h);
+
+  var filt = el('availFilter');
+  if (filt) filt.addEventListener('change', function() {
+    sh('availGrid', buildAvailGrid(staffData, this.value));
+    attachAvailHandlers(staffData);
+  });
+  attachAvailHandlers(staffData);
+}
+
+function getAvailColor(pct) {
+  if (pct > 100) return '#3C3489';
+  if (pct >= 90) return '#639922';
+  if (pct >= 70) return '#EF9F27';
+  if (pct >= 50) return '#E87722';
+  return '#E24B4A';
+}
+
+function getAvailBg(pct) {
+  if (pct > 100) return '#EEEDFE';
+  if (pct >= 90) return '#EAF3DE';
+  if (pct >= 70) return '#FAEEDA';
+  if (pct >= 50) return '#FFF0E6';
+  return '#FCEBEB';
+}
+
+function getAvailLabel(pct) {
+  if (pct > 100) return 'Oversubscribed';
+  if (pct >= 90) return 'Full utilization';
+  if (pct >= 70) return 'Has bandwidth';
+  if (pct >= 50) return 'Significant bandwidth';
+  return 'Needs work';
+}
+
+function buildAvailGrid(staffData, filter) {
+  var filtered = staffData.filter(function(d) {
+    if (filter === 'under50') return d.loggedPct < 50;
+    if (filter === 'bandwidth') return d.loggedPct < 90;
+    if (filter === 'over') return d.loggedPct > 100;
+    return true;
+  });
+
+  if (!filtered.length) return '<div class="empty">No staff match this filter.</div>';
+
+  // Sort: oversubscribed first, then by loggedPct descending
+  filtered.sort(function(a, b) {
+    if (a.loggedPct > 100 && b.loggedPct <= 100) return -1;
+    if (b.loggedPct > 100 && a.loggedPct <= 100) return 1;
+    return b.loggedPct - a.loggedPct;
+  });
+
+  var h = '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>Staff member</th>';
+  h += '<th>Logged ' + curQ() + ' hrs</th>';
+  h += '<th>Actual FTE %</th>';
+  h += '<th>Assigned % effort</th>';
+  h += '<th>Active projects</th>';
+  h += '<th>Status</th>';
+  h += '<th>Utilization</th>';
+  h += '<th></th>';
+  h += '</tr></thead><tbody>';
+
+  filtered.forEach(function(d) {
+    var col = getAvailColor(d.loggedPct);
+    var bg = getAvailBg(d.loggedPct);
+    var lbl = getAvailLabel(d.loggedPct);
+    var barW = Math.min(100, d.loggedPct);
+    var assignedBarW = Math.min(100, d.assignedPct);
+
+    h += '<tr>';
+    h += '<td style="font-weight:600;font-size:13px">';
+    h += '<div style="display:flex;align-items:center;gap:8px">';
+    h += '<div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">' + initials(d.name) + '</div>';
+    h += d.name + ' ' + userBadge(d.name);
+    h += '</div></td>';
+
+    h += '<td style="font-weight:600">' + fmtHrs(d.loggedHrs) + ' hrs</td>';
+
+    h += '<td>';
+    h += '<div style="display:flex;align-items:center;gap:8px">';
+    h += '<div style="width:80px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden;flex-shrink:0">';
+    h += '<div style="width:' + barW + '%;height:100%;background:' + col + ';border-radius:4px"></div></div>';
+    h += '<span style="font-weight:700;color:' + col + '">' + d.loggedPct + '%</span>';
+    h += '</div></td>';
+
+    h += '<td>';
+    if (d.assignedPct > 0) {
+      h += '<div style="display:flex;align-items:center;gap:8px">';
+      h += '<div style="width:80px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden;flex-shrink:0">';
+      h += '<div style="width:' + assignedBarW + '%;height:100%;background:#185FA5;border-radius:4px"></div></div>';
+      h += '<span style="font-weight:600;color:#185FA5">' + d.assignedPct + '%</span>';
+      h += '</div>';
+    } else {
+      h += '<span style="font-size:12px;color:#aaa">No % effort projects</span>';
+    }
+    h += '</td>';
+
+    h += '<td style="font-size:13px">' + d.activeProjects + ' active</td>';
+
+    h += '<td><span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;background:' + bg + ';color:' + col + '">' + lbl + '</span></td>';
+
+    // Mini utilization bar showing logged vs assigned
+    h += '<td>';
+    h += '<div style="font-size:10px;color:#aaa;margin-bottom:3px">Logged vs assigned</div>';
+    h += '<div style="position:relative;width:100px;height:14px;background:#f0f0f0;border-radius:7px;overflow:hidden">';
+    h += '<div style="position:absolute;left:0;top:0;width:' + barW + '%;height:100%;background:' + col + ';border-radius:7px;opacity:.9"></div>';
+    if (d.assignedPct > 0) {
+      h += '<div style="position:absolute;left:0;top:0;width:' + assignedBarW + '%;height:100%;border:2px solid #185FA5;border-radius:7px;box-sizing:border-box"></div>';
+    }
+    h += '</div></td>';
+
+    h += '<td><button class="btn btn-sm" data-avail-detail="' + d.name + '">Details</button></td>';
+    h += '</tr>';
+  });
+
+  h += '</tbody></table></div>';
+  return h;
+}
+
+function attachAvailHandlers(staffData) {
+  document.querySelectorAll('[data-avail-detail]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      openAvailDetail(this.getAttribute('data-avail-detail'), staffData);
+    });
+  });
+}
+
+function openAvailDetail(name, staffData) {
+  var d = staffData.filter(function(x) { return x.name === name; })[0];
+  if (!d) return;
+  var q = curQ(), yr = curYr();
+  var FTE_HRS = 520;
+  var col = getAvailColor(d.loggedPct);
+  var lbl = getAvailLabel(d.loggedPct);
+
+  // Hours by project this quarter
+  var projBreakdown = [];
+  Object.keys(d.byProject).forEach(function(pid) {
+    var p = projects.filter(function(x) { return x.id === pid; })[0];
+    var hrs = d.byProject[pid];
+    projBreakdown.push({
+      project: p ? p.project : pid,
+      pi: p ? p.pi : '',
+      type: p ? p.type : '',
+      hrs: hrs,
+      pct: Math.round(hrs / FTE_HRS * 100)
+    });
+  });
+  projBreakdown.sort(function(a,b) { return b.hrs - a.hrs; });
+
+  // Hours by service type this quarter
+  var bySvc = {};
+  hoursData.filter(function(h) {
+    return h.staffName === name && h.quarter === q && h.year === yr;
+  }).forEach(function(h) {
+    if (!bySvc[h.serviceType]) bySvc[h.serviceType] = 0;
+    bySvc[h.serviceType] += h.hours;
+  });
+
+  // Prior quarters for trend
+  var trend = [];
+  ['Q1','Q2','Q3','Q4'].forEach(function(tq) {
+    var tHrs = hoursData.filter(function(h) {
+      return h.staffName === name && h.quarter === tq && h.year === yr;
+    }).reduce(function(a,h) { return a+h.hours; }, 0);
+    trend.push({q:tq, hrs:tHrs, pct:Math.round(tHrs/FTE_HRS*100)});
+  });
+
+  var h = '<div class="modal-title">' + name + ' &mdash; ' + q + ' ' + yr + ' availability</div>';
+  h += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:1.5rem;flex-wrap:wrap">';
+  h += '<div style="text-align:center;padding:1rem 1.5rem;background:' + getAvailBg(d.loggedPct) + ';border-radius:10px;flex-shrink:0">';
+  h += '<div style="font-size:32px;font-weight:700;color:' + col + '">' + d.loggedPct + '%</div>';
+  h += '<div style="font-size:12px;color:' + col + ';font-weight:600">' + lbl + '</div>';
+  h += '<div style="font-size:11px;color:#888;margin-top:2px">' + fmtHrs(d.loggedHrs) + ' / 520 hrs</div></div>';
+  if (d.assignedPct > 0) {
+    h += '<div style="text-align:center;padding:1rem 1.5rem;background:#E6F1FB;border-radius:10px;flex-shrink:0">';
+    h += '<div style="font-size:32px;font-weight:700;color:#185FA5">' + d.assignedPct + '%</div>';
+    h += '<div style="font-size:12px;color:#185FA5;font-weight:600">Assigned effort</div>';
+    h += '<div style="font-size:11px;color:#888;margin-top:2px">from % effort projects</div></div>';
+  }
+  h += '<div style="flex:1;min-width:180px">';
+  h += '<div style="font-size:12px;color:#888;margin-bottom:6px">Quarterly trend (' + yr + ')</div>';
+  trend.forEach(function(t) {
+    var tc = getAvailColor(t.pct);
+    h += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">';
+    h += '<span style="font-size:11px;color:#888;width:20px">' + t.q + '</span>';
+    h += '<div style="flex:1;height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden">';
+    h += '<div style="width:' + Math.min(100,t.pct) + '%;height:100%;background:' + tc + ';border-radius:4px"></div></div>';
+    h += '<span style="font-size:11px;font-weight:600;color:' + tc + ';width:35px;text-align:right">' + t.pct + '%</span>';
+    h += '</div>';
+  });
+  h += '</div></div>';
+
+  if (projBreakdown.length) {
+    h += '<div style="font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Hours by project &mdash; ' + q + ' ' + yr + '</div>';
+    h += '<div style="overflow-x:auto;margin-bottom:1.5rem"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Hours</th><th>% FTE</th><th>Share</th></tr></thead><tbody>';
+    projBreakdown.forEach(function(p) {
+      var shareW = d.loggedHrs > 0 ? Math.round(p.hrs / d.loggedHrs * 100) : 0;
+      h += '<tr><td style="font-weight:600;font-size:12px">' + p.project + '</td>';
+      h += '<td style="font-size:12px;color:#666">' + p.pi + '</td>';
+      h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></td>';
+      h += '<td style="font-weight:600">' + fmtHrs(p.hrs) + '</td>';
+      h += '<td style="font-weight:600;color:' + getAvailColor(p.pct) + '">' + p.pct + '%</td>';
+      h += '<td><div style="display:flex;align-items:center;gap:6px"><div style="width:60px;height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden"><div style="width:' + shareW + '%;height:100%;background:#185FA5;border-radius:3px"></div></div><span style="font-size:11px;color:#888">' + shareW + '%</span></div></td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+  } else {
+    h += '<div style="background:#FAEEDA;border-radius:8px;padding:12px 14px;font-size:13px;color:#854F0B;margin-bottom:1.5rem">&#9888; No hours logged for ' + q + ' ' + yr + '. This staff member has not submitted any hours this quarter.</div>';
+  }
+
+  if (Object.keys(bySvc).length) {
+    h += '<div style="font-size:12px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px">Hours by service type</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:1.5rem">';
+    Object.keys(bySvc).sort(function(a,b){return bySvc[b]-bySvc[a];}).forEach(function(svc) {
+      var pct = d.loggedHrs > 0 ? Math.round(bySvc[svc]/d.loggedHrs*100) : 0;
+      h += '<div style="background:#f5f5f5;border-radius:8px;padding:8px 12px;text-align:center;min-width:100px">';
+      h += '<div style="font-size:14px;font-weight:700;color:#185FA5">' + fmtHrs(bySvc[svc]) + '</div>';
+      h += '<div style="font-size:11px;color:#888;margin-top:2px">' + svc + '</div>';
+      h += '<div style="font-size:11px;color:#aaa">' + pct + '% of total</div></div>';
+    });
+    h += '</div>';
+  }
+
+  h += '<div class="actions"><button class="btn btn-primary" id="availCloseBtn">Close</button></div>';
+  openModal(h);
+  el('availCloseBtn').addEventListener('click', closeModal);
 }
 
 
