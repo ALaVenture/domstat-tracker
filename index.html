@@ -1865,6 +1865,194 @@ function saveFRGrantEdit(id) {
 }
 
 
+// ── MY PROFILE ─────────────────────────────────────────────────────────────
+function buildMyProfile(){
+  var name=session.name;
+  var profile=getProfile(name);
+  var tax=getAllSkills();
+  var skillMap={};(profile.skills||[]).forEach(function(s){skillMap[s.name]={level:s.level,category:s.category};});
+  var pendingMine=skillRequests.filter(function(r){return r.requestedBy===name&&r.status==='pending';});
+  var h='<div class="card">';
+  h+='<div style="display:flex;align-items:center;gap:14px;margin-bottom:1.5rem;flex-wrap:wrap">';
+  h+='<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
+  h+='<div><div style="font-size:17px;font-weight:600">'+name+'</div><div style="margin-top:4px">'+roleBadgeHtml()+'</div></div></div>';
+  if(pendingMine.length)h+='<div class="alert alert-info" style="margin-bottom:1rem">You have <strong>'+pendingMine.length+'</strong> pending skill request'+(pendingMine.length>1?'s':'')+': '+pendingMine.map(function(r){return'<em>'+r.skillName+'</em>';}).join(', ')+' &mdash; awaiting admin approval</div>';
+  h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px">Current skills</div>';
+  h+='<div id="profileSkillsPreview" style="margin-bottom:1.5rem;min-height:32px">'+(profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>')+'</div>';
+  h+='<div style="border-top:1px solid #f0f0f0;padding-top:1rem;font-size:13px;font-weight:600;margin-bottom:1rem">Edit skills &amp; competencies</div>';
+  Object.keys(tax).forEach(function(cat){
+    h+='<div style="margin-bottom:1.25rem"><div style="font-size:11px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">'+cat+'</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:5px">';
+    tax[cat].forEach(function(skill){
+      var cur=skillMap[skill];
+      var idSafe='sk_'+cat.replace(/\W/g,'_')+'_'+skill.replace(/\W/g,'_');
+      h+='<div style="display:inline-flex;align-items:center;border:1px solid '+(cur?'#185FA5':'#e5e5e5')+';border-radius:8px;overflow:hidden;background:'+(cur?'#E6F1FB':'#fafafa')+'">';
+      h+='<label style="display:flex;align-items:center;gap:5px;padding:5px 9px;cursor:pointer;font-size:12px;font-weight:'+(cur?'600':'400')+';color:'+(cur?'#185FA5':'#666')+'">';
+      h+='<input type="checkbox" data-skill-cat="'+cat+'" data-skill-name="'+skill+'" id="'+idSafe+'" '+(cur?'checked':'')+' style="accent-color:#185FA5;width:13px;height:13px">';
+      h+=(skill==='WOC (VA Authorization)'?'&#127973; ':'')+skill+'</label>';
+      if(cur){
+        h+='<select data-skill-level-cat="'+cat+'" data-skill-level-name="'+skill+'" style="font-size:11px;border:none;border-left:1px solid #b5d4f4;background:#E6F1FB;color:#185FA5;padding:5px 6px;cursor:pointer;font-weight:500">';
+        PROF_LEVELS.forEach(function(l){h+='<option'+(( cur.level||'Proficient')===l?' selected':'')+'>'+l+'</option>';});
+        h+='</select>';
+      }
+      h+='</div>';
+    });
+    h+='<button class="btn btn-sm" style="font-size:11px;border-style:dashed;color:#999;padding:5px 10px" data-req-cat="'+cat+'">+ Other</button>';
+    h+='</div></div>';
+  });
+  h+='<div class="actions"><button class="btn btn-primary" id="saveProfileBtn">Save profile</button></div>';
+  if(profile.updatedDate)h+='<div style="font-size:11px;color:#ccc;margin-top:8px;text-align:right">Last updated '+fmtDate(profile.updatedDate)+'</div>';
+  h+='</div>';
+  sh('pageContainer',h);
+  // Skill checkboxes
+  document.querySelectorAll('[data-skill-cat]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var cat=this.getAttribute('data-skill-cat'), skill=this.getAttribute('data-skill-name');
+      var p=profilesData[name]||{skills:[],updatedDate:''};
+      if(!p.skills)p.skills=[];
+      if(this.checked){if(!p.skills.some(function(s){return s.name===skill;}))p.skills.push({name:skill,category:cat,level:'Proficient'});}
+      else{p.skills=p.skills.filter(function(s){return s.name!==skill;});}
+      profilesData[name]=p;
+      sh('profileSkillsPreview',profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>');
+      buildMyProfile();
+    });
+  });
+  // Level dropdowns
+  document.querySelectorAll('[data-skill-level-cat]').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      var cat=this.getAttribute('data-skill-level-cat'), skill=this.getAttribute('data-skill-level-name');
+      var p=profilesData[name]||{skills:[]};
+      var entry=p.skills.filter(function(s){return s.name===skill;})[0];
+      if(entry)entry.level=this.value;
+      profilesData[name]=p;
+      sh('profileSkillsPreview',profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>');
+    });
+  });
+  // Other (request new skill)
+  document.querySelectorAll('[data-req-cat]').forEach(function(btn){
+    btn.addEventListener('click',function(){requestNewSkill(this.getAttribute('data-req-cat'));});
+  });
+  el('saveProfileBtn').addEventListener('click',saveMyProfile);
+}
+
+function saveMyProfile(){
+  var p=profilesData[session.name]||{skills:[]};
+  p.updatedDate=new Date().toISOString().split('T')[0];
+  profilesData[session.name]=p;
+  var rec={staffName:session.name,skills:JSON.stringify(p.skills||[]),updatedDate:p.updatedDate};
+  saveRecord('upsert',rec,'profiles').then(function(){
+    openModal('<div class="modal-title">Profile saved</div><div class="alert alert-ok">Your skills profile has been updated.</div><div class="actions"><button class="btn btn-primary" id="profileOkBtn">OK</button></div>');
+    el('profileOkBtn').addEventListener('click',closeModal);
+  });
+}
+
+function requestNewSkill(category){
+  openModal('<div class="modal-title">Request new skill &mdash; '+category+'</div>' +
+    '<p style="font-size:13px;color:#666;margin-bottom:1rem">Suggest a skill to add to the <strong>'+category+'</strong> list. Admin will review before it appears for everyone.</p>' +
+    '<div class="form-group" style="margin-bottom:1rem"><label>Skill name *</label><input id="newSkillName" placeholder="e.g. Network Meta-Analysis"></div>' +
+    '<div class="actions"><button class="btn" id="reqCancelBtn">Cancel</button><button class="btn btn-primary" id="reqSubmitBtn">Submit for review</button></div>');
+  el('reqCancelBtn').addEventListener('click',closeModal);
+  el('reqSubmitBtn').addEventListener('click',function(){
+    var skillName=gv('newSkillName').trim();
+    if(!skillName){alert('Please enter a skill name.');return;}
+    var tax=getAllSkills();
+    if((tax[category]||[]).some(function(s){return s.toLowerCase()===skillName.toLowerCase();})){alert('This skill already exists.');return;}
+    if(skillRequests.some(function(r){return r.skillName.toLowerCase()===skillName.toLowerCase()&&r.status==='pending';})){alert('A request for this skill is already pending.');closeModal();return;}
+    var rec={id:String(nextIds.sr++),requestedBy:session.name,category:category,skillName:skillName,status:'pending',requestedDate:new Date().toISOString().split('T')[0],reviewedBy:'',reviewedDate:''};
+    skillRequests.push(rec);
+    saveRecord('add',rec,'skillRequests');
+    closeModal();
+    openModal('<div class="modal-title">Request submitted</div><div class="alert alert-ok">Your request to add <strong>'+skillName+'</strong> to the '+category+' list has been sent for review.</div><div class="actions"><button class="btn btn-primary" id="reqOkBtn">OK</button></div>');
+    el('reqOkBtn').addEventListener('click',closeModal);
+  });
+}
+
+// ── STAFF SKILLS DIRECTORY ─────────────────────────────────────────────────
+function buildStaffSkills(){
+  var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']);
+  var tax=getAllSkills();
+  var allSkillsList=Object.keys(tax).reduce(function(a,k){return a.concat(tax[k]);});
+  var pendingReqs=skillRequests.filter(function(r){return r.status==='pending';});
+  var h='<div class="card"><div class="section-hdr" style="margin-bottom:1rem">';
+  h+='<span class="card-title" style="margin:0">Staff skills &amp; competencies</span>';
+  if(canApprove()&&pendingReqs.length)h+='<span class="badge badge-appr-pending">'+pendingReqs.length+' skill request'+(pendingReqs.length>1?'s':'')+' pending</span>';
+  h+='</div>';
+  h+='<div class="filter-row"><input id="ssName" type="text" placeholder="Search name..." style="width:150px"><select id="ssCat"><option value="">All categories</option>';
+  Object.keys(tax).forEach(function(c){h+='<option>'+c+'</option>';});
+  h+='</select><select id="ssSkill"><option value="">Filter by skill...</option>';
+  allSkillsList.forEach(function(s){h+='<option>'+s+'</option>';});
+  h+='</select><select id="ssLevel"><option value="">Any level</option>';
+  PROF_LEVELS.forEach(function(l){h+='<option>'+l+'</option>';});
+  h+='</select></div>';
+  if(canApprove()&&pendingReqs.length){
+    h+='<div style="border:1px solid #e5e5e5;border-left:4px solid #EF9F27;border-radius:8px;padding:14px;margin-bottom:1.5rem;background:#FFFDF7">';
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px">Pending skill additions ('+pendingReqs.length+')</div>';
+    pendingReqs.forEach(function(r){
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;flex-wrap:wrap;gap:6px">';
+      h+='<div><strong style="font-size:13px">'+r.skillName+'</strong><span style="font-size:12px;color:#888;margin-left:6px">&mdash; '+r.category+'</span><span style="font-size:12px;color:#666;margin-left:6px">by '+r.requestedBy+'</span></div>';
+      h+='<div style="display:flex;gap:6px"><button class="btn btn-sm btn-approve" data-approve-skill="'+r.id+'">&check; Approve</button><button class="btn btn-sm btn-reject" data-reject-skill="'+r.id+'">&times; Reject</button></div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<div id="ssGrid">'+buildSkillGrid(allStaff)+'</div></div>';
+  sh('pageContainer',h);
+  ['ssName','ssCat','ssSkill','ssLevel'].forEach(function(id){
+    var e=el(id); if(e)e.addEventListener('input',refreshSkillGrid); if(e)e.addEventListener('change',refreshSkillGrid);
+  });
+  document.querySelectorAll('[data-approve-skill]').forEach(function(btn){btn.addEventListener('click',function(){approveSkillRequest(this.getAttribute('data-approve-skill'));});});
+  document.querySelectorAll('[data-reject-skill]').forEach(function(btn){btn.addEventListener('click',function(){rejectSkillRequest(this.getAttribute('data-reject-skill'));});});
+}
+
+function refreshSkillGrid(){
+  var search=(gv('ssName')||'').toLowerCase();
+  var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']).filter(function(n){return !search||n.toLowerCase().indexOf(search)>-1;});
+  sh('ssGrid',buildSkillGrid(allStaff));
+}
+
+function buildSkillGrid(staffList){
+  var skill=gv('ssSkill'),level=gv('ssLevel'),cat=gv('ssCat');
+  var tax=getAllSkills(), cats=Object.keys(tax);
+  var filtered=staffList.filter(function(name){
+    var skills=getProfile(name).skills||[];
+    if(skill&&!skills.some(function(s){return s.name===skill&&(!level||s.level===level);}))return false;
+    if(level&&!skill&&!skills.some(function(s){return s.level===level;}))return false;
+    if(cat&&!skills.some(function(s){return s.category===cat;}))return false;
+    return true;
+  });
+  if(!filtered.length)return'<div class="empty">No staff match current filters.</div>';
+  var h='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">';
+  filtered.forEach(function(name){
+    var p=getProfile(name), skills=p.skills||[];
+    var hasWOC=skills.some(function(s){return s.name==='WOC (VA Authorization)';});
+    h+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:#fff;'+(hasWOC?'border-top:3px solid #EF9F27':'')+'">';
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
+    h+='<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
+    h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+name+'</div><div style="margin-top:2px">'+userBadge(name)+'</div></div>';
+    if(hasWOC)h+='<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#FAEEDA;color:#854F0B;font-weight:600;flex-shrink:0">&#127973; WOC</span>';
+    h+='</div>';
+    if(skills.length){cats.forEach(function(c){var cs=skills.filter(function(s){return s.category===c;});if(!cs.length)return;h+='<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c+'</div><div>';cs.forEach(function(s){h+=skillBadge(s);});h+='</div></div>';});}
+    else h+='<div style="font-size:12px;color:#ccc;font-style:italic">No skills listed</div>';
+    if(p.updatedDate)h+='<div style="font-size:10px;color:#ddd;margin-top:6px">Updated '+fmtDate(p.updatedDate)+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+function approveSkillRequest(id){
+  var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
+  req.status='approved'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
+  saveRecord('update',req,'skillRequests');
+  buildStaffSkills();
+}
+function rejectSkillRequest(id){
+  var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
+  req.status='rejected'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
+  saveRecord('update',req,'skillRequests');
+  buildStaffSkills();
+}
+
+
 // ── FACULTY DATABASE (admin view) ──────────────────────────────────────────
 function buildFacultyDB(activeTab) {
   activeTab = activeTab || 'hours';
