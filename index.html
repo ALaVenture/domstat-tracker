@@ -702,10 +702,13 @@ function buildDashboard() {
   } else {
     h += '<div class="metric"><div class="metric-label">' + curQ() + ' hours</div><div class="metric-value mv-purple">' + fmtHrs(qHrs) + '</div></div>';
     h += '<div class="metric"><div class="metric-label">Winding down</div><div class="metric-value mv-amber">' + winding + '</div></div>';
-    if (canFunds) h += '<div class="metric"><div class="metric-label">Outstanding funds</div><div class="metric-value mv-red">' + fmtMoney(outstanding) + '</div></div>';
-  else h += '<div class="metric"><div class="metric-label">Upcoming</div><div class="metric-value">' + upcoming + '</div></div>';
-  
-  }h += '</div>';
+    if (canFunds) {
+      h += '<div class="metric"><div class="metric-label">Outstanding funds</div><div class="metric-value mv-red">' + fmtMoney(outstanding) + '</div></div>';
+    } else {
+      h += '<div class="metric"><div class="metric-label">Upcoming</div><div class="metric-value">' + upcoming + '</div></div>';
+    }
+  }
+  h += '</div>';
   if (alerts) h += '<div class="card"><div class="card-title">Alerts</div>' + alerts + '</div>';
   h += '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">' + (isFaculty?'My projects':isStaff?'My projects':'All projects') + ' (' + myP.length + ')</span></div>';
   if (!myP.length) {
