@@ -171,7 +171,7 @@ function isAdminLevel(){return['admin','director','assocdir'].includes(session.r
 function canApprove(){return['admin','director','assocdir'].includes(session.role);}
 function canEditImmediate(){return['admin','director','assocdir','staffmgr','faculty'].includes(session.role);}
 
-let projects=[], hoursData=[];,hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[];
+let projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[];
 let nextIds={proj:1,hours:1,approvals:1,fhours:1,fpubs:1,fgrants:1};
 let session={role:'public',name:null};
 let currentPage='intake';
@@ -1990,7 +1990,7 @@ async function submitProject(){
     <p style="font-size:13px;color:#555;margin-bottom:4px"><strong>PI:</strong> ${pi}</p>
     ${isPublic?`<p style="font-size:13px;color:#555;margin-bottom:1rem">Use your email and PIN to view accruals and billing on the portal at any time.</p>`:''}
     <div class="form-actions">
-      ${isPublic?'<button class="btn primary" onclick="closeModal();renderPage('mystatus')">Track my submission</button>':''}
+      ${isPublic?`<button class="btn primary" onclick="closeModal();renderPage('mystatus')">Track my submission</button>`:''}
       <button class="btn ${isPublic?'':'primary'}" onclick="closeModal();renderPage('intake')">Submit another</button>
     </div>`);
 }
@@ -2109,4 +2109,8 @@ function showDetail(id){
     </div>`);
 }
 
->
+// ── Start ─────────────────────────────────────────────────────────────────
+showLogin();
+</script>
+</body>
+</html>
