@@ -1,150 +1,1790 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOMStat Project Tracker</title>
 <style>
-body{font-family:sans-serif;padding:2rem;background:#f5f5f5}
-.card{background:#fff;border:1px solid #ddd;border-radius:12px;padding:2rem;max-width:400px;margin:0 auto}
-.tabs{display:flex;gap:4px;background:#f0f0f0;padding:4px;border-radius:8px;margin-bottom:1rem}
-.tab{flex:1;padding:8px;border:none;border-radius:6px;cursor:pointer;background:transparent;font-size:13px}
-.tab.active{background:#fff;color:#185FA5;font-weight:600}
-.panel{display:none}.panel.show{display:block}
-.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5F3;color:#1a1a1a;font-size:14px}
+.app{max-width:1150px;margin:0 auto;padding:1rem}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border:1px solid #e5e5e5;border-radius:12px;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+.logo{font-size:15px;font-weight:600}.logo span{color:#185FA5}
+.nav{display:flex;gap:4px;margin-bottom:1rem;flex-wrap:wrap}
+.nb{padding:7px 14px;font-size:13px;border:1px solid #e5e5e5;border-radius:8px;background:#fff;color:#666;cursor:pointer}
+.nb:hover{background:#f5f5f5}.nb.active{background:#E6F1FB;color:#185FA5;border-color:#b5d4f4}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:14px;font-weight:600;margin-bottom:1rem}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:1rem}
+.metric{background:#f5f5f5;border-radius:8px;padding:1rem}
+.metric-label{font-size:12px;color:#666;margin-bottom:4px}
+.metric-value{font-size:22px;font-weight:600}
+.mv-blue{color:#185FA5}.mv-green{color:#3B6D11}.mv-amber{color:#854F0B}.mv-red{color:#A32D2D}.mv-purple{color:#3C3489}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #e5e5e5;text-transform:uppercase;letter-spacing:.04em}
+td{padding:8px 10px;border-bottom:1px solid #f0f0f0;color:#1a1a1a;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+.badge-pct{background:#E6F1FB;color:#185FA5}.badge-hr{background:#EAF3DE;color:#3B6D11}.badge-ctsi{background:#FAEEDA;color:#854F0B}
+.badge-active{background:#EAF3DE;color:#3B6D11}.badge-pending{background:#FAEEDA;color:#854F0B}
+.badge-upcoming{background:#E6F1FB;color:#185FA5}.badge-winding{background:#FAECE7;color:#993C1D}
+.badge-lead{background:#EEEDFE;color:#3C3489;font-size:10px;padding:1px 6px}
+.badge-processed{background:#EAF3DE;color:#3B6D11}
+.badge-newproj{background:#E6F1FB;color:#185FA5}.badge-activeproj{background:#EAF3DE;color:#3B6D11}.badge-completeproj{background:#F1EFE8;color:#5F5E5A}
+.badge-approved{background:#EAF3DE;color:#3B6D11}.badge-rejected{background:#FCEBEB;color:#A32D2D}.badge-appr-pending{background:#FAEEDA;color:#854F0B}
+.ubadge{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 6px;border-radius:20px;font-weight:600}
+.ub-staff{background:#E6F1FB;color:#185FA5}.ub-mgr{background:#FFF8E1;color:#854F0B}.ub-fac{background:#E1F5EE;color:#0F6E56}
+.ub-ad{background:#FFF3E0;color:#854F0B}.ub-dir{background:#E3F2FD;color:#0C447C}.ub-fund{background:#EAF3DE;color:#3B6D11}
+.ub-admin{background:#EEEDFE;color:#3C3489}.ub-pub{background:#F1EFE8;color:#5F5E5A}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.full{grid-column:1/-1}
+.form-group{display:flex;flex-direction:column;gap:4px}
 label{font-size:12px;color:#555;font-weight:500}
-input,select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:13px}
-.btn{width:100%;padding:10px;background:#185FA5;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-top:4px}
-.err{color:#c00;font-size:12px;display:none;margin-bottom:8px}
-#result{margin-top:1rem;padding:12px;border-radius:8px;background:#e8f5e9;font-size:13px;display:none}
+input,select,textarea{font-size:13px;padding:7px 10px;border:1px solid #ccc;border-radius:8px;background:#fff;width:100%;color:#1a1a1a}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,165,.1)}
+textarea{resize:vertical;min-height:60px}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
+.btn{padding:8px 18px;font-size:13px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#fff;color:#1a1a1a}
+.btn:hover{background:#f5f5f5}
+.btn-primary{background:#185FA5;color:#fff;border-color:#185FA5}.btn-primary:hover{background:#0c447c}
+.btn-success{background:#3B6D11;color:#fff;border-color:#3B6D11}
+.btn-danger{color:#A32D2D;border-color:#A32D2D}
+.btn-approve{background:#EAF3DE;color:#3B6D11;border-color:#3B6D11}
+.btn-reject{background:#FCEBEB;color:#A32D2D;border-color:#A32D2D}
+.btn-sm{padding:5px 12px;font-size:12px}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;align-items:center}
+.filter-row select,.filter-row input{width:auto;font-size:12px;padding:5px 8px;border-radius:6px;border:1px solid #ccc}
+.section-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:8px;border-left:3px solid transparent}
+.alert-warn{background:#FAEEDA;color:#854F0B;border-left-color:#EF9F27}
+.alert-info{background:#E6F1FB;color:#185FA5;border-left-color:#378ADD}
+.alert-ok{background:#EAF3DE;color:#3B6D11;border-left-color:#639922}
+.alert-err{background:#FCEBEB;color:#A32D2D;border-left-color:#E24B4A}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:flex-start;justify-content:center;padding-top:30px;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;border:1px solid #e5e5e5;padding:1.5rem;width:700px;max-width:96vw;margin-bottom:30px}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:1rem}
+.sync-bar{display:flex;align-items:center;gap:8px;font-size:12px;color:#666}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#639922;flex-shrink:0}
+.sync-dot.syncing{background:#EF9F27}.sync-dot.err{background:#E24B4A}
+.empty{text-align:center;padding:2.5rem;color:#888;font-size:13px}
+.lw{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F5F5F3;padding:1rem}
+.lc{background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:2rem;width:440px;max-width:100%}
+.ltabs{display:flex;gap:4px;margin-bottom:1.5rem;background:#f5f5f5;padding:4px;border-radius:10px}
+.ltab{flex:1;padding:8px;font-size:13px;border:none;border-radius:8px;cursor:pointer;background:transparent;color:#666;font-weight:500}
+.ltab.active{background:#fff;color:#185FA5;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.tab-group{display:flex;margin-bottom:1rem;border:1px solid #e5e5e5;border-radius:8px;overflow:hidden}
+.tab-btn{flex:1;padding:8px 12px;font-size:12px;border:none;background:#f5f5f5;color:#666;cursor:pointer;font-weight:500}
+.tab-btn.active{background:#185FA5;color:#fff}
+.qbtn{padding:5px 14px;font-size:12px;border:1px solid #e5e5e5;border-radius:20px;background:#fff;color:#666;cursor:pointer}
+.qbtn.active{background:#185FA5;color:#fff;border-color:#185FA5}
+.budget-bar{height:10px;border-radius:5px;background:#e5e5e5;position:relative;width:120px;margin-top:3px}
+.budget-fill{height:10px;border-radius:5px;position:absolute;left:0;top:0}
+.skill-badge{display:inline-flex;align-items:center;gap:3px;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500;margin:2px}
+.err-msg{font-size:12px;color:#A32D2D;margin-bottom:10px;display:none}
+.initials{width:26px;height:26px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#185FA5;flex-shrink:0}
+@media(max-width:600px){.metrics{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.full{grid-column:1}}
+
 </style>
 </head>
 <body>
-<div class="card">
-  <h2 style="margin-bottom:4px">DOMStat Login Test</h2>
-  <p style="font-size:12px;color:#888;margin-bottom:1rem">Minimal test — no Google Sheets calls</p>
-  
-  <div class="tabs">
-    <button class="tab active" onclick="showTab('staff')">Staff</button>
-    <button class="tab" onclick="showTab('faculty')">Faculty</button>
-    <button class="tab" onclick="showTab('admin')">Admin/FM</button>
-  </div>
-
-  <!-- Staff -->
-  <div class="panel show" id="p-staff">
-    <div class="fg"><label>Name</label>
-      <select id="ln-staff">
-        <option value="">Select...</option>
-        <option>Josh Lee</option>
-        <option>Jenny Brook</option>
-        <option>Sitaram Vangala</option>
-      </select>
-    </div>
-    <div class="fg"><label>Role</label>
-      <select id="lr-staff">
-        <option value="staff">Staff</option>
-        <option value="staffmgr">Staff Manager</option>
-      </select>
-    </div>
-    <div class="fg"><label>Passcode</label>
-      <input type="password" id="lc-staff" placeholder="Enter passcode">
-    </div>
-    <div class="err" id="le-staff">Incorrect passcode</div>
-    <button class="btn" onclick="doLogin('staff')">Sign in</button>
-  </div>
-
-  <!-- Faculty -->
-  <div class="panel" id="p-faculty">
-    <div class="fg"><label>Name</label>
-      <select id="ln-faculty">
-        <option value="">Select...</option>
-        <option>David Elashoff</option>
-        <option>Nicholas Jackson</option>
-        <option>Chi-Hong Tseng</option>
-      </select>
-    </div>
-    <div class="fg"><label>Passcode</label>
-      <input type="password" id="lc-faculty" placeholder="Enter passcode">
-    </div>
-    <div class="err" id="le-faculty">Incorrect passcode</div>
-    <button class="btn" onclick="doLogin('faculty')">Sign in</button>
-  </div>
-
-  <!-- Admin -->
-  <div class="panel" id="p-admin">
-    <div class="fg"><label>Role</label>
-      <select id="lr-admin">
-        <option value="fund">Fund Manager</option>
-        <option value="admin">Admin</option>
-      </select>
-    </div>
-    <div class="fg"><label>Passcode</label>
-      <input type="password" id="lc-admin" placeholder="Enter passcode">
-    </div>
-    <div class="err" id="le-admin">Incorrect passcode</div>
-    <button class="btn" onclick="doLogin('admin')">Sign in</button>
-  </div>
-
-  <div id="result"></div>
+<div id="root"></div>
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
 </div>
-
 <script>
-var PASSCODES = {
-  staff: 'staff123',
-  staffmgr: 'StaffManager123',
-  faculty: 'Faculty123',
-  fund: 'fund456',
-  admin: 'admin789'
-};
 
-function showTab(tab) {
-  document.querySelectorAll('.tab').forEach(function(b,i){
-    b.className = 'tab' + (['staff','faculty','admin'][i]===tab?' active':'');
-  });
-  document.querySelectorAll('.panel').forEach(function(p){
-    p.className = 'panel';
-  });
-  document.getElementById('p-'+tab).className = 'panel show';
+const API="https://script.google.com/macros/s/AKfycbyWbM9m0CRFpbeiesoO3UY9OvGEnFZMyRSH4NTby1qpjS3azDQQRkXmIkjfYxcnqzLj/exec";
+const STAFF=["Angelique Rubio", "Angshuman Saha", "Arseniy Vasilyev", "Chris Castle", "Claudia Perez", "Daniela Markovic", "Dennis Ruenger", "Eric Demer", "Estefania Sanchez Salas", "Holly Wilhalme", "Jenny Brook", "Jinhui Liu", "Josh Lee", "Keren Chen", "Lillian Chen", "Lucia Chen", "Mei Leng", "Paige Smith", "Rebecca Chung", "Rong Guo", "Sitaram Vangala", "Tahmineh Romero", "Tristan Grogan", "Tristan Tibbe", "Victoria Adebambo", "Yash Motwani"];
+const FACULTY=["Chi-Hong Tseng", "Nicholas Jackson", "Alexandra Klomhaus", "Li-Jung Liang", "Myung Sim", "Yiqun Jiang", "Anita Yuan"];
+const STAFF_MGRS=["Jenny Brook", "Tristan Grogan", "Holly Wilhalme", "Dennis Ruenger"];
+const RATES={"Angelique Rubio": 66.08, "Arseniy Vasilyev": 66.08, "Chris Castle": 66.08, "Claudia Perez": 66.08, "Eric Demer": 66.08, "Estefania Sanchez Salas": 66.08, "Jinhui Liu": 66.08, "Josh Lee": 66.08, "Paige Smith": 66.08, "Rebecca Chung": 66.08, "Victoria Adebambo": 66.08, "Yash Motwani": 66.08, "Lucia Chen": 71.62, "Keren Chen": 72.87, "Lillian Chen": 72.87, "Tristan Tibbe": 72.87, "Dennis Ruenger": 76.2, "Tahmineh Romero": 82.63, "Mei Leng": 92.32, "Daniela Markovic": 92.72, "Holly Wilhalme": 105.42, "Rong Guo": 105.42, "Angshuman Saha": 108.04, "Tristan Grogan": 122.12, "Sitaram Vangala": 122.69, "Jenny Brook": 149.85};
+const DEPTS=["Cardiology", "Emergency Medicine", "Endocrinology", "Gastroenterology", "General Internal Medicine", "Geriatrics", "Hematology / Oncology", "Hepatology", "Infectious Disease", "Nephrology", "Neurology", "Obstetrics & Gynecology", "Ophthalmology", "Orthopedic Surgery", "Pediatrics", "Primary Care", "Psychiatry", "Pulmonology / Critical Care", "Radiology", "Rheumatology", "Surgery", "UCLA Health System", "CTSI", "GIM & HSR", "Nursing", "VA", "Orthopaedics", "Radiation Oncology", "Other"];
+const SVCS=["Consulting", "Data Analysis", "Data Management", "Database Development", "Grant Application", "Manuscript", "Protocol", "Study Design", "Other"];
+const FAC_SVCS=["Data Analysis", "Grant Application", "Administration", "Study Design", "Data Management"];
+const PROJ_STATUSES=["New Project", "Active Project", "Project Complete"];
+const PUB_STATUSES=["Abstract", "Submitted", "Accepted", "In-Press", "Published", "Under Review", "In-prep"];
+const GRANT_TYPES=["PPG/Center", "R01 or Equiv", "U01", "R21 or Equiv", "Foundation", "Industry", "K Series", "Other CDA", "Internal"];
+const GRANT_STATUSES=["Funded", "Submitted", "Under Review", "Not Funded"];
+const PROF_LEVELS=["Beginner", "Proficient", "Expert"];
+const SKILLS={"Methods": ["Regression", "Survival Analysis", "Mixed Models / LME", "Bayesian Analysis", "Power & Sample Size", "Meta-Analysis", "Machine Learning", "Causal Inference", "Longitudinal Data Analysis", "Time Series", "Multivariate Analysis", "Factor Analysis / PCA", "Structural Equation Modeling", "Propensity Score Methods"], "Software": ["R", "SAS", "Stata", "Python", "SPSS", "REDCap", "SQL", "MATLAB"], "Domain": ["Clinical Trials", "EHR / Claims Data", "Survey Design", "Genomics / Omics", "Epidemiology", "Health Services Research", "Pediatrics", "Oncology", "Psychiatry", "Cardiology", "Neurology", "Imaging Data"], "Certifications": ["WOC (VA Authorization)"]};
+const PASSCODES={staff:"staff123",staffmgr:"StaffManager123",faculty:"Faculty123",fund:"fund456",admin:"admin789"};
+const ROLE_PAGES={
+  public:["pidashboard","intake","mystatus"],
+  staff:["dashboard","myprojects","loghours","myhours","myprofile","intake"],
+  staffmgr:["dashboard","allprojects","loghours","myhours","myprofile","staffskills","editproject","intake"],
+  faculty:["dashboard","allprojects","facultyreporting","myprofile","staffskills","editproject","intake"],
+  fund:["dashboard","allprojects","billing","fund","staffskills"],
+  admin:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","staffview","budgets","approvals","editproject","intake"],
+  assocdir:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","staffview","budgets","approvals","editproject","intake"],
+  director:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","staffview","budgets","approvals","editproject","intake"]
+};
+const PAGE_LABELS={
+  pidashboard:"My Dashboard",dashboard:"Dashboard",myprojects:"My Projects",allprojects:"All Projects",
+  loghours:"Log Hours",myhours:"My Hours",facultyreporting:"Faculty Reporting",
+  billing:"Hours & Billing",fund:"Fund Manager Queue",staffview:"Staff Overview",
+  budgets:"Budget Management",approvals:"Pending Approvals",editproject:"Edit Project",
+  intake:"Submit Project",mystatus:"My Submissions",myprofile:"My Profile",staffskills:"Staff Skills"
+};
+const PROF_BG={Beginner:"#E6F1FB",Proficient:"#EAF3DE",Expert:"#EEEDFE"};
+const PROF_COL={Beginner:"#185FA5",Proficient:"#3B6D11",Expert:"#3C3489"};
+
+// ── State ──────────────────────────────────────────────────────────────────
+var projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[];
+var profilesData={},skillRequests=[],intakeTeam=[];
+var session={role:"public",name:null,piEmail:null};
+var currentPage="intake";
+var nextIds={proj:1,hrs:1,appr:1,fh:1,fp:1,fg:1,sr:1};
+
+// ── DOM helpers ────────────────────────────────────────────────────────────
+function el(id){return document.getElementById(id);}
+function gv(id){var e=el(id);return e?e.value:"";}
+function sh(id,html){var e=el(id);if(e)e.innerHTML=html;}
+function openModal(html){el("modalContent").innerHTML=html;el("modalOverlay").className="modal-overlay open";}
+function closeModal(){el("modalOverlay").className="modal-overlay";}
+
+// ── Utilities ──────────────────────────────────────────────────────────────
+function initials(n){var p=(n||"").split(" ");return((p[0]||"?")[0]+(p[p.length-1]||"?")[0]).toUpperCase();}
+function fmtDate(d){if(!d)return"—";try{var dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return d;}}
+function fmtMoney(n){return(n===null||n===undefined||n==="")?"—":"$"+Number(n).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtHrs(n){return(n===null||n===undefined||n==="")?0:Number(n).toFixed(1);}
+function typeLabel(t){return{pct:"% Effort",hr:"Hourly Recharge",ctsi:"CTSI"}[t]||t;}
+function typeBadge(t){return "badge badge-"+{pct:"pct",hr:"hr",ctsi:"ctsi"}[t];}
+function statusBadge(s){return "badge badge-"+{active:"active",pending:"pending",upcoming:"upcoming",winding:"winding"}[s]||"badge";}
+function projStatusBadge(s){return "badge "+{"New Project":"badge-newproj","Active Project":"badge-activeproj","Project Complete":"badge-completeproj"}[s];}
+function daysLeft(d){return Math.ceil((new Date(d)-new Date())/86400000);}
+function getQ(d){if(!d)return null;var m=new Date(d).getMonth()+1;return m<=3?"Q1":m<=6?"Q2":m<=9?"Q3":"Q4";}
+function getYr(d){if(!d)return null;return new Date(d).getFullYear();}
+function curQ(){return getQ(new Date().toISOString());}
+function curYr(){return new Date().getFullYear();}
+function parseTeam(r){if(!r)return[];try{return JSON.parse(r);}catch(e){return[];}}
+function projHrs(id){return hoursData.filter(function(h){return h.projectId===id;}).reduce(function(a,h){return a+h.hours;},0);}
+function projBill(id){return hoursData.filter(function(h){return h.projectId===id;}).reduce(function(a,h){return a+h.billingAmount;},0);}
+function isAdmin(){return["admin","director","assocdir"].indexOf(session.role)>-1;}
+function canApprove(){return["admin","director","assocdir"].indexOf(session.role)>-1;}
+function canEditNow(){return["admin","director","assocdir","staffmgr","faculty"].indexOf(session.role)>-1;}
+
+function setSyncStatus(state,msg){
+  var dot=el("syncDot"),txt=el("syncStatus");
+  if(!dot||!txt)return;
+  dot.className="sync-dot"+(state==="syncing"?" syncing":state==="err"?" err":"");
+  txt.textContent=msg;
 }
 
-function get(id){ return document.getElementById(id); }
-function val(id){ var e=get(id); return e?e.value:''; }
+function getFridayWeeks(n){
+  var weeks=[],d=new Date();d.setHours(0,0,0,0);
+  var diff=d.getDay()<=5?5-d.getDay():5-d.getDay()+7;
+  d.setDate(d.getDate()+diff);
+  for(var i=0;i<n;i++){weeks.push(new Date(d).toISOString().split("T")[0]);d.setDate(d.getDate()-7);}
+  return weeks;
+}
+
+// ── Badges ─────────────────────────────────────────────────────────────────
+function userBadge(name){
+  if(name==="David Elashoff") return "<span class='ubadge ub-dir'>&#128311; Director</span>";
+  if(name==="Sitaram Vangala") return "<span class='ubadge ub-ad'>&#128310; Assoc. Dir</span>";
+  if(STAFF_MGRS.indexOf(name)>-1) return "<span class='ubadge ub-mgr'>&#128203; Staff Mgr</span>";
+  if(FACULTY.indexOf(name)>-1) return "<span class='ubadge ub-fac'>&#127891; Faculty</span>";
+  if(STAFF.indexOf(name)>-1) return "<span class='ubadge ub-staff'>&#128100; Staff</span>";
+  return "";
+}
+
+function roleBadgeHtml(){
+  var labels={public:"PI / Submitter",staff:"Staff",staffmgr:"Staff Manager",faculty:"Faculty",
+    assocdir:"Associate Director",director:"Director",fund:"Fund Manager",admin:"Admin"};
+  var icons={public:"&#128302;",staff:"&#128100;",staffmgr:"&#128203;",faculty:"&#127891;",
+    assocdir:"&#128310;",director:"&#128311;",fund:"&#128176;",admin:"&#128737;"};
+  var cls={public:"ub-pub",staff:"ub-staff",staffmgr:"ub-mgr",faculty:"ub-fac",
+    assocdir:"ub-ad",director:"ub-dir",fund:"ub-fund",admin:"ub-admin"};
+  var r=session.role||"public";
+  var txt=icons[r]+" "+(labels[r]||r)+(session.name?" — "+session.name:"");
+  return "<span class='ubadge "+cls[r]+"'>"+txt+"</span>";
+}
+
+// ── Row converters ─────────────────────────────────────────────────────────
+function rowToProject(r){
+  return{id:String(r.id||""),pi:r.pi||"",project:r.project||"",type:r.type||"hr",
+    department:r.department||"",grant:r.grant||"",fau:r.fau||"",
+    start:r.start||"",end:r.end||"",
+    totalValue:(r.totalValue!==""&&r.totalValue!=null)?Number(r.totalValue):null,
+    fundsReceived:(r.fundsReceived!==""&&r.fundsReceived!=null)?Number(r.fundsReceived):null,
+    budgetTarget:(r.budgetTarget!==""&&r.budgetTarget!=null)?Number(r.budgetTarget):null,
+    status:r.status||"active",fundManagerStatus:r.fundManagerStatus||"pending",
+    projectStatus:r.projectStatus||"Active Project",
+    piEmail:r.piEmail||"",fmName:r.fmName||"",fmEmail:r.fmEmail||"",piPin:r.piPin||"",
+    notes:r.notes||"",submittedBy:r.submittedBy||"",submittedDate:r.submittedDate||"",
+    lead:r.lead||"",team:parseTeam(r.team)};
+}
+function projectToRow(p){
+  return{id:p.id,pi:p.pi,project:p.project,type:p.type,department:p.department||"",
+    grant:p.grant||"",fau:p.fau||"",start:p.start||"",end:p.end||"",
+    totalValue:p.totalValue!=null?p.totalValue:"",fundsReceived:p.fundsReceived!=null?p.fundsReceived:"",
+    budgetTarget:p.budgetTarget!=null?p.budgetTarget:"",status:p.status,
+    fundManagerStatus:p.fundManagerStatus,projectStatus:p.projectStatus||"Active Project",
+    piEmail:p.piEmail||"",fmName:p.fmName||"",fmEmail:p.fmEmail||"",piPin:p.piPin||"",
+    notes:p.notes||"",submittedBy:p.submittedBy,submittedDate:p.submittedDate,
+    lead:p.lead||"",team:JSON.stringify(p.team||[])};
+}
+function rowToHours(r){
+  return{id:String(r.id||""),projectId:String(r.projectId||""),staffName:r.staffName||"",
+    weekEnding:r.weekEnding||"",serviceType:r.serviceType||"",hours:Number(r.hours)||0,
+    billingAmount:Number(r.billingAmount)||0,pctEffort:Number(r.pctEffort)||0,
+    projectStatus:r.projectStatus||"Active Project",notes:r.notes||"",
+    submittedDate:r.submittedDate||"",quarter:r.quarter||"",year:Number(r.year)||0};
+}
+function rowToApproval(r){
+  return{id:String(r.id||""),requestType:r.requestType||"",requestedBy:r.requestedBy||"",
+    projectId:String(r.projectId||""),projectName:r.projectName||"",
+    fieldChanged:r.fieldChanged||"",oldValue:r.oldValue||"",newValue:r.newValue||"",
+    status:r.status||"pending",requestedDate:r.requestedDate||"",
+    reviewedBy:r.reviewedBy||"",reviewedDate:r.reviewedDate||"",notes:r.notes||""};
+}
+
+// ── API ────────────────────────────────────────────────────────────────────
+function fetchSheet(name){
+  return fetch(API+"?sheet="+name+"&t="+Date.now())
+    .then(function(r){return r.ok?r.json():[];})
+    .catch(function(){return[];});
+}
+
+function saveRecord(action,record,sheet){
+  setSyncStatus("syncing","Saving...");
+  return fetch(API,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},
+    body:JSON.stringify({action:action,record:record,sheet:sheet||"Sheet1"})})
+    .then(function(){setSyncStatus("ok","Saved");setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},2000);return true;})
+    .catch(function(){setSyncStatus("err","Save failed");return false;});
+}
+
+function submitApproval(reqType,projId,projName,field,oldVal,newVal){
+  var rec={id:String(nextIds.appr++),requestType:reqType,requestedBy:session.name,
+    projectId:projId,projectName:projName,fieldChanged:field,
+    oldValue:typeof oldVal==="object"?JSON.stringify(oldVal):String(oldVal||""),
+    newValue:typeof newVal==="object"?JSON.stringify(newVal):String(newVal||""),
+    status:"pending",requestedDate:new Date().toISOString().split("T")[0],
+    reviewedBy:"",reviewedDate:"",notes:""};
+  approvals.push(rec);
+  return saveRecord("add",rec,"approvals");
+}
+
+function loadData(manual){
+  setSyncStatus("syncing",manual?"Refreshing...":"Connecting...");
+  var p0=fetchSheet("Sheet1");
+  var p1=fetchSheet("hours");
+  var p2=fetchSheet("approvals");
+  var p3=fetchSheet("profiles");
+  var p4=fetchSheet("skillRequests");
+  Promise.all([p0,p1,p2,p3,p4]).then(function(results){
+    var pd=results[0],hd=results[1],ad=results[2],prfd=results[3],srd=results[4];
+    if(Array.isArray(pd)){
+      projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;});
+      if(projects.length)nextIds.proj=Math.max.apply(null,projects.map(function(p){return Number(p.id)||0;})+1);
+    }
+    if(Array.isArray(hd)){
+      hoursData=hd.map(rowToHours).filter(function(h){return h.id&&h.projectId;});
+      if(hoursData.length)nextIds.hrs=Math.max.apply(null,hoursData.map(function(h){return Number(h.id)||0;})+1);
+    }
+    if(Array.isArray(ad)){
+      approvals=ad.map(rowToApproval).filter(function(a){return a.id;});
+      if(approvals.length)nextIds.appr=Math.max.apply(null,approvals.map(function(a){return Number(a.id)||0;})+1);
+    }
+    profilesData={};
+    if(Array.isArray(prfd))prfd.forEach(function(r){
+      if(r.staffName)try{profilesData[r.staffName]={skills:JSON.parse(r.skills||"[]"),updatedDate:r.updatedDate||""};}catch(e){profilesData[r.staffName]={skills:[],updatedDate:""};}
+    });
+    skillRequests=[];
+    if(Array.isArray(srd)){skillRequests=srd.filter(function(r){return r.id;});}
+    setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
+    setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
+    renderNav();
+    renderPage(currentPage);
+  }).catch(function(e){
+    setSyncStatus("err","Connection failed");
+    renderNav();
+    renderPage(currentPage);
+  });
+}
+
+// ── Auth / Login ───────────────────────────────────────────────────────────
+function showLogin() {
+  var staffOpts = '<option value="">Select your name...</option>';
+  STAFF.forEach(function(s) {
+    var tag = STAFF_MGRS.indexOf(s) > -1 ? ' \u2605' : (s === 'Sitaram Vangala' ? ' \uD83D\uDD36' : '');
+    staffOpts += '<option value="' + s + '">' + s + tag + '</option>';
+  });
+  var facOpts = '<option value="">Select your name...</option>';
+  ['David Elashoff'].concat(FACULTY).forEach(function(s) {
+    facOpts += '<option value="' + s + '">' + s + (s === 'David Elashoff' ? ' \uD83D\uDD37' : '') + '</option>';
+  });
+
+  var h = '<div class="lw"><div class="lc">';
+  h += '<div style="font-size:20px;font-weight:600;margin-bottom:4px"><span style="color:#185FA5">DOM</span>Stat Project Tracker</div>';
+  h += '<div style="font-size:13px;color:#888;margin-bottom:1.5rem">Department of Medicine Statistics &mdash; UCLA</div>';
+  h += '<div class="ltabs" id="loginTabRow">';
+  h += '<button class="ltab active" data-tab="public">\uD83D\uDD2C Submit / View</button>';
+  h += '<button class="ltab" data-tab="staff">\uD83D\uDC64 Staff</button>';
+  h += '<button class="ltab" data-tab="faculty">\uD83C\uDF93 Faculty</button>';
+  h += '<button class="ltab" data-tab="admin">\uD83D\uDEE1\uFE0F Admin / FM</button>';
+  h += '</div>';
+  // Public panel
+  h += '<div id="lp-public">';
+  h += '<p style="font-size:13px;color:#555;margin-bottom:1rem;line-height:1.6">Submit a new project or view your account.</p>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:1rem">';
+  h += '<button class="btn btn-primary" style="flex:1" data-action="submit-public">Submit a project</button>';
+  h += '<button class="btn" style="flex:1" data-action="view-public">View my account</button>';
+  h += '</div></div>';
+  // Staff panel
+  h += '<div id="lp-staff" style="display:none">';
+  h += '<div class="form-group" style="margin-bottom:12px"><label>Your name</label>';
+  h += '<select id="ln-staff">' + staffOpts + '</select></div>';
+  h += '<div class="form-group" style="margin-bottom:12px"><label>Access level</label>';
+  h += '<select id="lr-staff"><option value="staff">\uD83D\uDC64 Staff</option><option value="staffmgr">\uD83D\uDCCB Staff Manager</option></select></div>';
+  h += '<div class="form-group" style="margin-bottom:16px"><label>Passcode</label>';
+  h += '<input type="password" id="lc-staff" placeholder="Enter passcode"></div>';
+  h += '<div class="err-msg" id="le-staff">Incorrect passcode.</div>';
+  h += '<button class="btn btn-primary" style="width:100%" data-login="staff">Sign in</button></div>';
+  // Faculty panel
+  h += '<div id="lp-faculty" style="display:none">';
+  h += '<div class="form-group" style="margin-bottom:12px"><label>Your name</label>';
+  h += '<select id="ln-faculty">' + facOpts + '</select></div>';
+  h += '<div class="form-group" style="margin-bottom:16px"><label>Passcode</label>';
+  h += '<input type="password" id="lc-faculty" placeholder="Enter passcode"></div>';
+  h += '<div class="err-msg" id="le-faculty">Incorrect passcode.</div>';
+  h += '<button class="btn btn-primary" style="width:100%" data-login="faculty">Sign in</button></div>';
+  // Admin panel
+  h += '<div id="lp-admin" style="display:none">';
+  h += '<div class="form-group" style="margin-bottom:12px"><label>Access level</label>';
+  h += '<select id="lr-admin"><option value="fund">\uD83D\uDCB0 Fund Manager</option><option value="admin">\uD83D\uDEE1\uFE0F Admin</option></select></div>';
+  h += '<div class="form-group" style="margin-bottom:16px"><label>Passcode</label>';
+  h += '<input type="password" id="lc-admin" placeholder="Enter passcode"></div>';
+  h += '<div class="err-msg" id="le-admin">Incorrect passcode.</div>';
+  h += '<button class="btn btn-primary" style="width:100%" data-login="admin">Sign in</button></div>';
+  h += '</div></div>';
+  sh('root', h);
+
+  // Attach all handlers — NO inline onclick anywhere
+  document.querySelectorAll('[data-tab]').forEach(function(btn) {
+    btn.addEventListener('click', function() { switchLoginTab(this.getAttribute('data-tab')); });
+  });
+  document.querySelectorAll('[data-login]').forEach(function(btn) {
+    btn.addEventListener('click', function() { doLogin(this.getAttribute('data-login')); });
+  });
+  document.querySelectorAll('[data-action]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var a = this.getAttribute('data-action');
+      if (a === 'submit-public') enterAsPublic('submit');
+      else if (a === 'view-public') enterAsPublic('view');
+    });
+  });
+  ['lc-staff','lc-faculty','lc-admin'].forEach(function(id) {
+    var e = el(id);
+    if (e) e.addEventListener('keydown', function(ev) {
+      if (ev.key === 'Enter') doLogin(id.replace('lc-',''));
+    });
+  });
+}
+
+function switchLoginTab(tab) {
+  ['public','staff','faculty','admin'].forEach(function(t) {
+    var btn = document.querySelector('[data-tab="' + t + '"]');
+    var panel = el('lp-' + t);
+    if (btn) btn.className = 'ltab' + (t === tab ? ' active' : '');
+    if (panel) panel.style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function enterAsPublic(mode) {
+  if (mode === 'view') {
+    var h = '<div class="lw"><div class="lc">';
+    h += '<div style="font-size:20px;font-weight:600;margin-bottom:4px"><span style="color:#185FA5">DOM</span>Stat</div>';
+    h += '<div style="font-size:13px;color:#888;margin-bottom:1.5rem">View your project account</div>';
+    h += '<div class="form-group" style="margin-bottom:12px"><label>Your email address (as submitted)</label>';
+    h += '<input type="email" id="pi-email" placeholder="your@email.edu"></div>';
+    h += '<div class="form-group" style="margin-bottom:16px"><label>Your 4-digit PIN</label>';
+    h += '<input type="password" id="pi-pin" placeholder="4-digit PIN" maxlength="4"></div>';
+    h += '<div class="err-msg" id="pi-err">Email or PIN not found.</div>';
+    h += '<button class="btn btn-primary" style="width:100%;margin-bottom:8px" id="piLoginBtn">View my account</button>';
+    h += '<button class="btn" style="width:100%" id="piBackBtn">Back</button>';
+    h += '</div></div>';
+    sh('root', h);
+    el('piLoginBtn').addEventListener('click', doPILogin);
+    el('piBackBtn').addEventListener('click', showLogin);
+    el('pi-pin').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') doPILogin(); });
+  } else {
+    session = {role:'public', name:null, piEmail:null};
+    currentPage = 'intake';
+    renderNav();
+    renderPage('intake');
+  }
+}
+
+function doPILogin() {
+  var email = gv('pi-email').trim().toLowerCase();
+  var pin = gv('pi-pin').trim();
+  var errEl = el('pi-err');
+  if (!email || !pin) { errEl.style.display = 'block'; return; }
+  var match = null;
+  for (var i = 0; i < projects.length; i++) {
+    if (projects[i].piEmail && projects[i].piEmail.toLowerCase() === email && String(projects[i].piPin) === String(pin)) {
+      match = projects[i]; break;
+    }
+  }
+  if (!match) { errEl.style.display = 'block'; return; }
+  session = {role:'public', name:match.pi, piEmail:email};
+  currentPage = 'pidashboard';
+  renderNav();
+  renderPage('pidashboard');
+}
 
 function doLogin(tab) {
   var role, name, code, errEl, expectedCode;
-
   if (tab === 'staff') {
-    role = val('lr-staff');
-    name = val('ln-staff');
-    code = val('lc-staff');
-    errEl = get('le-staff');
-    if (!name) { alert('Select your name'); return; }
+    role = gv('lr-staff'); name = gv('ln-staff'); code = gv('lc-staff'); errEl = el('le-staff');
+    if (!name) { alert('Please select your name.'); return; }
     var isSitaram = (name === 'Sitaram Vangala' && role === 'staffmgr');
     expectedCode = isSitaram ? PASSCODES.admin : (role === 'staffmgr' ? PASSCODES.staffmgr : PASSCODES.staff);
     if (code !== expectedCode) { errEl.style.display = 'block'; return; }
     if (isSitaram) role = 'assocdir';
-
   } else if (tab === 'faculty') {
-    name = val('ln-faculty');
-    code = val('lc-faculty');
-    errEl = get('le-faculty');
-    if (!name) { alert('Select your name'); return; }
-    role = name === 'David Elashoff' ? 'director' : 'faculty';
-    expectedCode = role === 'director' ? PASSCODES.admin : PASSCODES.faculty;
+    name = gv('ln-faculty'); code = gv('lc-faculty'); errEl = el('le-faculty');
+    if (!name) { alert('Please select your name.'); return; }
+    role = name === 'David Elashoff' ? 'director' : (name === 'Sitaram Vangala' ? 'assocdir' : 'faculty');
+    expectedCode = (role === 'director' || role === 'assocdir') ? PASSCODES.admin : PASSCODES.faculty;
     if (code !== expectedCode) { errEl.style.display = 'block'; return; }
-
   } else {
-    role = val('lr-admin');
-    code = val('lc-admin');
-    errEl = get('le-admin');
+    role = gv('lr-admin'); code = gv('lc-admin'); errEl = el('le-admin');
     expectedCode = role === 'fund' ? PASSCODES.fund : PASSCODES.admin;
     if (code !== expectedCode) { errEl.style.display = 'block'; return; }
     name = role === 'fund' ? 'Fund Manager' : 'Admin';
   }
-
   errEl.style.display = 'none';
-  var result = get('result');
-  result.style.display = 'block';
-  result.style.background = '#e8f5e9';
-  result.innerHTML = '<strong>✓ Login successful</strong><br>Role: ' + role + '<br>Name: ' + name;
+  session = {role:role, name:name, piEmail:null};
+  currentPage = ROLE_PAGES[role][0];
+  loadData(false);
 }
+
+function logout() {
+  session = {role:'public', name:null, piEmail:null};
+  currentPage = 'intake';
+  showLogin();
+}
+
+// ── Nav / Routing ──────────────────────────────────────────────────────────
+function renderNav() {
+  var pages = (ROLE_PAGES[session.role] || []).filter(function(p) { return p !== 'editproject'; });
+  var pendingAppr = approvals.filter(function(a) { return a.status === 'pending'; }).length;
+  var pendingSkill = skillRequests.filter(function(r) { return r.status === 'pending'; }).length;
+
+  var top = '<div class="topbar">';
+  top += '<div style="display:flex;align-items:center;gap:10px">';
+  top += '<span class="logo"><span>DOM</span>Stat Project Tracker</span>';
+  top += roleBadgeHtml();
+  top += '</div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  if (session.role !== 'public') {
+    top += '<div class="sync-bar"><div class="sync-dot syncing" id="syncDot"></div><span id="syncStatus">Loading...</span></div>';
+    top += '<button class="btn btn-sm" id="refreshBtn">Refresh</button>';
+  }
+  top += '<button class="btn btn-sm" id="logoutBtn">Sign out</button>';
+  top += '</div></div>';
+
+  var nav = '<div class="nav" id="mainNav">';
+  pages.forEach(function(p) {
+    var lbl = PAGE_LABELS[p] || p;
+    if (p === 'approvals' && pendingAppr > 0) lbl += ' (' + pendingAppr + ')';
+    if (p === 'staffskills' && pendingSkill > 0) lbl += ' (' + pendingSkill + ')';
+    nav += '<button class="nb' + (currentPage === p ? ' active' : '') + '" data-page="' + p + '">' + lbl + '</button>';
+  });
+  nav += '</div>';
+
+  sh('root', '<div class="app">' + top + nav + '<div id="pageContainer"></div></div>');
+
+  // Attach handlers
+  var navEl = el('mainNav');
+  if (navEl) navEl.querySelectorAll('.nb').forEach(function(btn) {
+    btn.addEventListener('click', function() { renderPage(this.getAttribute('data-page')); });
+  });
+  var ref = el('refreshBtn');
+  if (ref) ref.addEventListener('click', function() { loadData(true); });
+  var lo = el('logoutBtn');
+  if (lo) lo.addEventListener('click', logout);
+}
+
+function renderPage(p) {
+  var pages = ROLE_PAGES[session.role] || [];
+  if (pages.indexOf(p) === -1) p = pages[0];
+  currentPage = p;
+  renderNav();
+  var fns = {
+    pidashboard: buildPIDashboard, dashboard: buildDashboard,
+    myprojects: buildMyProjects, allprojects: buildAllProjects,
+    loghours: buildLogHours, myhours: buildMyHours,
+    facultyreporting: buildFacultyReporting,
+    billing: buildBilling, fund: buildFund,
+    staffview: buildStaffOverview, budgets: buildBudgets,
+    approvals: buildApprovals, editproject: buildEditProject,
+    intake: buildIntake, mystatus: buildMyStatus,
+    myprofile: buildMyProfile, staffskills: buildStaffSkills
+  };
+  try {
+    (fns[p] || buildIntake)();
+  } catch(e) {
+    sh('pageContainer', '<div class="card"><div class="alert alert-err">Page error: ' + e.message + '</div></div>');
+    console.error('renderPage error:', e);
+  }
+}
+
+// ── Shared UI helpers ──────────────────────────────────────────────────────
+function teamPills(p) {
+  var html = '';
+  (p.team || []).forEach(function(m) {
+    html += '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">';
+    html += '<div class="initials">' + initials(m.name) + '</div>';
+    html += '<span style="font-size:12px">' + m.name + '</span>';
+    if (m.lead) html += ' <span class="badge badge-lead">Lead</span>';
+    if (p.type === 'pct' && m.pct) html += ' <span style="font-size:10px;background:#EEEDFE;color:#534AB7;padding:1px 5px;border-radius:3px">' + m.pct + '%</span>';
+    html += userBadge(m.name);
+    html += '</div>';
+  });
+  return html;
+}
+
+function budgetBar(p) {
+  if (!p.budgetTarget) return '';
+  var spent = projBill(p.id);
+  var pct = Math.min(100, Math.round(spent / p.budgetTarget * 100));
+  var col = pct >= 100 ? '#E24B4A' : pct >= 80 ? '#EF9F27' : '#639922';
+  return '<div class="budget-bar"><div class="budget-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
+    '<div style="font-size:10px;color:#888;margin-top:2px">' + fmtMoney(spent) + ' / ' + fmtMoney(p.budgetTarget) + '</div>';
+}
+
+function getProfile(name) { return profilesData[name] || {skills:[], updatedDate:''}; }
+
+function getAllSkills() {
+  var tax = JSON.parse(JSON.stringify(SKILLS));
+  skillRequests.filter(function(r) { return r.status === 'approved'; }).forEach(function(r) {
+    if (tax[r.category] && tax[r.category].indexOf(r.skillName) === -1) tax[r.category].push(r.skillName);
+  });
+  return tax;
+}
+
+function skillBadge(skill) {
+  var lvl = skill.level || 'Proficient';
+  var isWOC = skill.name === 'WOC (VA Authorization)';
+  var bg = isWOC ? '#FAEEDA' : (PROF_BG[lvl] || '#f5f5f5');
+  var col = isWOC ? '#854F0B' : (PROF_COL[lvl] || '#555');
+  return '<span class="skill-badge" style="background:' + bg + ';color:' + col + ';border:1px solid ' + (isWOC ? '#EF9F27' : 'transparent') + '">' +
+    (isWOC ? '&#127973; ' : '') + skill.name + ' <span style="opacity:.65;font-size:10px">&middot; ' + lvl + '</span></span>';
+}
+
+function profileSkillsHtml(name) {
+  var p = getProfile(name);
+  if (!(p.skills || []).length) return '';
+  var tax = getAllSkills();
+  var html = '';
+  Object.keys(tax).forEach(function(cat) {
+    var cs = p.skills.filter(function(s) { return s.category === cat; });
+    if (!cs.length) return;
+    html += '<div style="margin-bottom:5px"><span style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;letter-spacing:.05em;margin-right:4px">' + cat + '</span>';
+    cs.forEach(function(s) { html += skillBadge(s); });
+    html += '</div>';
+  });
+  return html;
+}
+
+// ── Detail modal ───────────────────────────────────────────────────────────
+function showDetail(id) {
+  var p = null;
+  for (var i = 0; i < projects.length; i++) { if (String(projects[i].id) === String(id)) { p = projects[i]; break; } }
+  if (!p) return;
+  var canFunds = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
+  var canEdit = canEditNow() || session.role === 'staff';
+  var h = '<div class="modal-title">' + p.project + '</div>';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-bottom:1rem">';
+  h += '<div><span style="color:#666">PI:</span> <strong>' + p.pi + '</strong></div>';
+  h += '<div><span style="color:#666">Department:</span> ' + (p.department || '&mdash;') + '</div>';
+  h += '<div><span style="color:#666">Type:</span> <span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></div>';
+  h += '<div><span style="color:#666">Status:</span> <span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></div>';
+  h += '<div><span style="color:#666">Start:</span> ' + fmtDate(p.start) + '</div>';
+  h += '<div><span style="color:#666">End:</span> ' + fmtDate(p.end) + '</div>';
+  if (p.grant) h += '<div><span style="color:#666">Grant #:</span> ' + p.grant + '</div>';
+  if (p.fau) h += '<div><span style="color:#666">FAU:</span> ' + p.fau + '</div>';
+  if (canFunds && p.totalValue != null) h += '<div><span style="color:#666">Total value:</span> ' + fmtMoney(p.totalValue) + '</div>';
+  if (canFunds && p.budgetTarget != null) h += '<div><span style="color:#666">Budget target:</span> ' + fmtMoney(p.budgetTarget) + '</div>';
+  if (canFunds) h += '<div><span style="color:#666">Billed to date:</span> <strong style="color:#3B6D11">' + fmtMoney(projBill(p.id)) + '</strong></div>';
+  h += '</div>';
+  h += '<div style="margin-bottom:1rem"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Team</div>';
+  h += teamPills(p) || '<div style="font-size:12px;color:#999">Unassigned</div>';
+  // Skills for each team member
+  var teamSkills = '';
+  (p.team || []).forEach(function(m) {
+    var ps = profileSkillsHtml(m.name);
+    if (ps) teamSkills += '<div style="margin-top:6px;padding:8px;background:#f9f9f9;border-radius:8px"><div style="font-size:10px;font-weight:700;color:#aaa;text-transform:uppercase;margin-bottom:4px">' + m.name.split(' ')[0] + '\'s skills</div>' + ps + '</div>';
+  });
+  if (teamSkills) h += teamSkills;
+  h += '</div>';
+  if (p.notes) h += '<div style="font-size:13px;background:#f5f5f5;padding:10px 12px;border-radius:8px;margin-bottom:1rem;color:#666">' + p.notes + '</div>';
+  h += '<div class="actions">';
+  if (canEdit) h += '<button class="btn btn-sm" id="detailEditBtn">Edit project</button>';
+  if (['fund','admin','director','assocdir'].indexOf(session.role) > -1 && p.fundManagerStatus === 'pending') h += '<button class="btn btn-sm btn-primary" id="detailProcessBtn">Mark processed</button>';
+  if (['fund','admin','director','assocdir'].indexOf(session.role) > -1) h += '<button class="btn btn-sm btn-success" id="detailInvoiceBtn">Send invoice</button>';
+  h += '<button class="btn btn-sm" id="detailCloseBtn">Close</button>';
+  h += '</div>';
+  openModal(h);
+  el('detailCloseBtn').addEventListener('click', closeModal);
+  var editBtn = el('detailEditBtn');
+  if (editBtn) editBtn.addEventListener('click', function() { closeModal(); openEditModal(id); });
+  var procBtn = el('detailProcessBtn');
+  if (procBtn) procBtn.addEventListener('click', function() { markProcessed(id); closeModal(); });
+  var invBtn = el('detailInvoiceBtn');
+  if (invBtn) invBtn.addEventListener('click', function() { closeModal(); sendInvoice(id); });
+}
+
+function markProcessed(id) {
+  var p = null;
+  for (var i = 0; i < projects.length; i++) { if (projects[i].id === id) { p = projects[i]; break; } }
+  if (!p) return;
+  p.fundManagerStatus = 'processed';
+  saveRecord('update', projectToRow(p), 'Sheet1');
+  renderPage(currentPage);
+}
+
+// ── DASHBOARD ──────────────────────────────────────────────────────────────
+function buildDashboard() {
+  var isStaff = session.role === 'staff' || session.role === 'staffmgr';
+  var myP = isStaff ? projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); }) : projects;
+  var active = myP.filter(function(p) { return p.status === 'active'; }).length;
+  var winding = myP.filter(function(p) { return p.status === 'winding'; }).length;
+  var upcoming = myP.filter(function(p) { return p.status === 'upcoming'; }).length;
+  var qHrs = hoursData.filter(function(h) { return h.quarter === curQ() && h.year === curYr() && (!isStaff || h.staffName === session.name); }).reduce(function(a,h) { return a+h.hours; }, 0);
+  var canFunds = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
+  var pendingAppr = canApprove() ? approvals.filter(function(a) { return a.status === 'pending'; }).length : 0;
+  var pendingSkill = canApprove() ? skillRequests.filter(function(r) { return r.status === 'pending'; }).length : 0;
+  var myPending = session.role === 'staff' ? approvals.filter(function(a) { return a.requestedBy === session.name && a.status === 'pending'; }).length : 0;
+  var outstanding = canFunds ? myP.reduce(function(a,p) { return a + Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0)); }, 0) : null;
+
+  var alerts = '';
+  if (canApprove() && pendingAppr) alerts += '<div class="alert alert-warn"><strong>' + pendingAppr + ' change request' + (pendingAppr>1?'s':'') + '</strong> awaiting approval &mdash; <a href="#" id="gotoApprovals" style="color:inherit;font-weight:600">Review now &rarr;</a></div>';
+  if (canApprove() && pendingSkill) alerts += '<div class="alert alert-info"><strong>' + pendingSkill + ' skill request' + (pendingSkill>1?'s':'') + '</strong> pending &mdash; <a href="#" id="gotoSkills" style="color:inherit;font-weight:600">Review &rarr;</a></div>';
+  if (myPending) alerts += '<div class="alert alert-info">You have <strong>' + myPending + ' pending request' + (myPending>1?'s':'') + '</strong> awaiting admin approval</div>';
+  myP.filter(function(p) { return p.status === 'winding'; }).forEach(function(p) { var d=daysLeft(p.end); if(d<90&&d>0) alerts += '<div class="alert alert-warn"><strong>' + p.project + '</strong> winds down in ' + d + ' days</div>'; });
+
+  var h = '<div class="metrics">';
+  h += '<div class="metric"><div class="metric-label">' + (isStaff?'My active':'Active') + ' projects</div><div class="metric-value mv-blue">' + active + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">' + curQ() + ' hours</div><div class="metric-value mv-purple">' + fmtHrs(qHrs) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Winding down</div><div class="metric-value mv-amber">' + winding + '</div></div>';
+  if (canFunds) h += '<div class="metric"><div class="metric-label">Outstanding funds</div><div class="metric-value mv-red">' + fmtMoney(outstanding) + '</div></div>';
+  else h += '<div class="metric"><div class="metric-label">Upcoming</div><div class="metric-value">' + upcoming + '</div></div>';
+  h += '</div>';
+  if (alerts) h += '<div class="card"><div class="card-title">Alerts</div>' + alerts + '</div>';
+  h += '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">' + (isStaff?'My projects':'All projects') + ' (' + myP.length + ')</span></div>';
+  if (!myP.length) { h += '<div class="empty">No projects yet.</div>'; }
+  else {
+    h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Team</th><th>Status</th>' + (canFunds?'<th>Budget</th>':'') + '</tr></thead><tbody>';
+    myP.slice(0,8).forEach(function(p) {
+      h += '<tr style="cursor:pointer" data-detail="' + p.id + '">';
+      h += '<td style="font-weight:600">' + p.project + '</td>';
+      h += '<td style="font-size:12px;color:#666">' + p.pi + (p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'') + '</td>';
+      h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span><br><span class="' + projStatusBadge(p.projectStatus) + '" style="margin-top:3px">' + p.projectStatus + '</span></td>';
+      h += '<td>' + teamPills(p) + '</td>';
+      h += '<td><span class="' + statusBadge(p.status) + '">' + p.status + '</span></td>';
+      if (canFunds) h += '<td>' + budgetBar(p) + '</td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  h += '</div>';
+  sh('pageContainer', h);
+  document.querySelectorAll('[data-detail]').forEach(function(row) {
+    row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); });
+  });
+  var ga = el('gotoApprovals'); if (ga) ga.addEventListener('click', function(e) { e.preventDefault(); renderPage('approvals'); });
+  var gs = el('gotoSkills'); if (gs) gs.addEventListener('click', function(e) { e.preventDefault(); renderPage('staffskills'); });
+}
+
+// ── PI DASHBOARD ───────────────────────────────────────────────────────────
+function buildPIDashboard() {
+  var piEmail = (session.piEmail || '').toLowerCase();
+  var myP = projects.filter(function(p) { return p.piEmail && p.piEmail.toLowerCase() === piEmail; });
+  var allH = hoursData.filter(function(h) { return myP.some(function(p) { return p.id === h.projectId; }); });
+  var totalHrs = allH.reduce(function(a,h) { return a+h.hours; }, 0);
+  var totalBill = allH.reduce(function(a,h) { return a+h.billingAmount; }, 0);
+  var outstanding = myP.reduce(function(a,p) { var b=projBill(p.id),r=Number(p.fundsReceived)||0; return a+Math.max(0,b-r); }, 0);
+  var h = '<div style="background:linear-gradient(135deg,#0C447C,#185FA5);border-radius:12px;padding:1.5rem;color:#fff;margin-bottom:1rem">';
+  h += '<div style="font-size:20px;font-weight:600;margin-bottom:4px">Welcome, ' + session.name + '</div>';
+  h += '<div style="font-size:13px;opacity:.8">DOMStat project account &mdash; ' + myP.length + ' project' + (myP.length!==1?'s':'') + '</div></div>';
+  h += '<div class="metrics"><div class="metric"><div class="metric-label">Projects</div><div class="metric-value mv-blue">' + myP.length + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Hours accrued</div><div class="metric-value mv-purple">' + fmtHrs(totalHrs) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Total billed</div><div class="metric-value mv-green">' + fmtMoney(totalBill) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Outstanding</div><div class="metric-value mv-red">' + fmtMoney(outstanding) + '</div></div></div>';
+  myP.forEach(function(p) {
+    var ph = hoursData.filter(function(hh) { return hh.projectId === p.id; });
+    var ptH = ph.reduce(function(a,hh) { return a+hh.hours; }, 0);
+    var ptB = ph.reduce(function(a,hh) { return a+hh.billingAmount; }, 0);
+    var byQ = {}; ph.forEach(function(hh) { var k=hh.quarter+' '+hh.year; if(!byQ[k])byQ[k]={hrs:0,bill:0}; byQ[k].hrs+=hh.hours; byQ[k].bill+=hh.billingAmount; });
+    var bySvc = {}; ph.forEach(function(hh) { if(!bySvc[hh.serviceType])bySvc[hh.serviceType]={hrs:0,bill:0}; bySvc[hh.serviceType].hrs+=hh.hours; bySvc[hh.serviceType].bill+=hh.billingAmount; });
+    h += '<div class="card">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:1rem">';
+    h += '<div><div style="font-weight:600;font-size:15px">' + p.project + '</div><div style="font-size:12px;color:#666;margin-top:3px">' + (p.department||'') + ' &middot; ' + typeLabel(p.type) + ' &middot; ' + fmtDate(p.start) + ' &rarr; ' + fmtDate(p.end) + '</div></div>';
+    h += '<span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></div>';
+    h += '<div class="metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:1rem">';
+    h += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-blue" style="font-size:18px">' + fmtHrs(ptH) + '</div></div>';
+    h += '<div class="metric"><div class="metric-label">Total billed</div><div class="metric-value mv-green" style="font-size:18px">' + fmtMoney(ptB) + '</div></div>';
+    h += '<div class="metric"><div class="metric-label">Budget remaining</div><div class="metric-value ' + (p.budgetTarget&&(p.budgetTarget-ptB)<0?'mv-red':'mv-green') + '" style="font-size:18px">' + (p.budgetTarget?fmtMoney(p.budgetTarget-ptB):'&mdash;') + '</div></div></div>';
+    if (Object.keys(byQ).length) {
+      h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:6px">By quarter</div>';
+      h += '<div style="overflow-x:auto;margin-bottom:1rem"><table><thead><tr><th>Period</th><th>Hours</th><th>Billed</th></tr></thead><tbody>';
+      Object.keys(byQ).forEach(function(q) { h += '<tr><td>' + q + '</td><td>' + fmtHrs(byQ[q].hrs) + '</td><td style="color:#3B6D11;font-weight:500">' + fmtMoney(byQ[q].bill) + '</td></tr>'; });
+      h += '</tbody></table></div>';
+    }
+    if (Object.keys(bySvc).length) {
+      h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:6px">By service type</div>';
+      h += '<div style="overflow-x:auto;margin-bottom:1rem"><table><thead><tr><th>Service</th><th>Hours</th><th>Billed</th></tr></thead><tbody>';
+      Object.keys(bySvc).forEach(function(sv) { h += '<tr><td>' + sv + '</td><td>' + fmtHrs(bySvc[sv].hrs) + '</td><td style="color:#3B6D11;font-weight:500">' + fmtMoney(bySvc[sv].bill) + '</td></tr>'; });
+      h += '</tbody></table></div>';
+    }
+    // Team skills
+    var tsHtml = '';
+    (p.team||[]).forEach(function(m) { var ps=profileSkillsHtml(m.name); if(ps) tsHtml+='<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:#888;margin-bottom:3px">'+m.name+'</div>'+ps+'</div>'; });
+    if (tsHtml) h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;margin-top:.5rem"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Assigned team &amp; skills</div>' + tsHtml + '</div>';
+    h += '</div>';
+  });
+  if (!myP.length) h += '<div class="card"><div class="empty">No projects found for your email. Contact your DOMStat fund manager.</div></div>';
+  sh('pageContainer', h);
+}
+
+// ── MY PROJECTS / ALL PROJECTS ─────────────────────────────────────────────
+function buildMyProjects() {
+  var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); });
+  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">My projects &mdash; ' + session.name + '</span><button class="btn btn-sm btn-primary" id="logHrsBtn">+ Log hours</button></div>';
+  if (!myP.length) h += '<div class="empty">You are not assigned to any projects yet.</div>';
+  else {
+    h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>My role</th><th>Status</th><th>Period</th><th>My hours</th></tr></thead><tbody>';
+    myP.forEach(function(p) {
+      var me = (p.team||[]).filter(function(m) { return m.name === session.name; })[0];
+      var myH = hoursData.filter(function(h) { return h.projectId === p.id && h.staffName === session.name; }).reduce(function(a,h) { return a+h.hours; }, 0);
+      h += '<tr style="cursor:pointer" data-detail="' + p.id + '">';
+      h += '<td style="font-weight:600">' + p.project + '</td>';
+      h += '<td style="font-size:12px;color:#666">' + p.pi + (p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'') + '</td>';
+      h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></td>';
+      h += '<td>' + (me&&me.lead?'<span class="badge badge-lead">Lead</span>':'<span style="font-size:12px;color:#666">Supporting</span>') + (p.type==='pct'&&me&&me.pct?'<span style="font-size:10px;background:#EEEDFE;color:#534AB7;padding:1px 5px;border-radius:3px;margin-left:4px">'+me.pct+'%</span>':'') + '</td>';
+      h += '<td><span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></td>';
+      h += '<td style="font-size:12px;color:#666">' + fmtDate(p.start) + ' &rarr; ' + fmtDate(p.end) + '</td>';
+      h += '<td style="font-weight:500">' + fmtHrs(myH) + ' hrs</td></tr>';
+    });
+    h += '</tbody></table></div>';
+  }
+  h += '</div>';
+  sh('pageContainer', h);
+  document.querySelectorAll('[data-detail]').forEach(function(row) { row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); }); });
+  var lb = el('logHrsBtn'); if (lb) lb.addEventListener('click', function() { renderPage('loghours'); });
+}
+
+function buildAllProjects() {
+  var allSkills = Object.values ? Object.keys(getAllSkills()).reduce(function(a,k) { return a.concat(getAllSkills()[k]); }, []) : [];
+  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">All projects (' + projects.length + ')</span>';
+  h += '<div style="display:flex;gap:8px">';
+  if (['admin','director','assocdir','staffmgr'].indexOf(session.role) > -1) h += '<button class="btn btn-sm btn-primary" id="submitProjBtn">+ Submit project</button>';
+  h += '<button class="btn btn-sm" id="searchJoinBtn">Search &amp; join</button></div></div>';
+  h += '<div class="filter-row">';
+  h += '<select id="fType"><option value="">All types</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select>';
+  h += '<select id="fStatus"><option value="">All statuses</option><option value="active">Active</option><option value="upcoming">Upcoming</option><option value="winding">Winding Down</option></select>';
+  h += '<select id="fDept"><option value="">All departments</option>'; DEPTS.forEach(function(d){h+='<option>'+d+'</option>';}); h += '</select>';
+  h += '<select id="fStaff"><option value="">All staff</option>'; STAFF.forEach(function(s){h+='<option>'+s+'</option>';}); h += '</select>';
+  h += '<select id="fPS"><option value="">All project statuses</option>'; PROJ_STATUSES.forEach(function(s){h+='<option>'+s+'</option>';}); h += '</select>';
+  h += '<select id="fSkill"><option value="">Filter by staff skill...</option>'; allSkills.forEach(function(s){h+='<option>'+s+'</option>';}); h += '</select>';
+  h += '</div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Status</th><th>Team</th><th>Period</th><th>Hours</th><th>Agreement</th></tr></thead><tbody id="apBody">' + buildAPRows(projects) + '</tbody></table></div></div>';
+  sh('pageContainer', h);
+  ['fType','fStatus','fDept','fStaff','fPS','fSkill'].forEach(function(id) {
+    var e = el(id); if (e) e.addEventListener('change', applyAllFilters);
+  });
+  var sb = el('submitProjBtn'); if (sb) sb.addEventListener('click', function() { renderPage('intake'); });
+  var sj = el('searchJoinBtn'); if (sj) sj.addEventListener('click', function() { renderPage('editproject'); });
+}
+
+function buildAPRows(list) {
+  if (!list.length) return '<tr><td colspan="8" class="empty">No projects match filters</td></tr>';
+  var h = '';
+  list.forEach(function(p) {
+    h += '<tr style="cursor:pointer" data-detail="' + p.id + '">';
+    h += '<td style="font-weight:600">' + p.project + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + p.pi + (p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'') + '</td>';
+    h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></td>';
+    h += '<td><span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></td>';
+    h += '<td>' + teamPills(p) + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + fmtDate(p.start) + ' &rarr; ' + fmtDate(p.end) + '</td>';
+    h += '<td style="font-size:12px">' + fmtHrs(projHrs(p.id)) + '</td>';
+    h += '<td><span class="badge ' + (p.fundManagerStatus==='processed'?'badge-processed':'badge-pending') + '">' + (p.fundManagerStatus==='processed'?'Processed':'Pending') + '</span></td>';
+    h += '</tr>';
+  });
+  setTimeout(function() {
+    document.querySelectorAll('[data-detail]').forEach(function(row) { row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); }); });
+  }, 50);
+  return h;
+}
+
+function applyAllFilters() {
+  var type=gv('fType'),status=gv('fStatus'),dept=gv('fDept'),staff=gv('fStaff'),ps=gv('fPS'),skill=gv('fSkill');
+  var f = projects.filter(function(p) {
+    if (type && p.type !== type) return false;
+    if (status && p.status !== status) return false;
+    if (dept && p.department !== dept) return false;
+    if (ps && p.projectStatus !== ps) return false;
+    if (staff && !(p.team||[]).some(function(m) { return m.name === staff; })) return false;
+    if (skill && !(p.team||[]).some(function(m) { return (getProfile(m.name).skills||[]).some(function(s) { return s.name === skill; }); })) return false;
+    return true;
+  });
+  sh('apBody', buildAPRows(f));
+}
+
+// ── MY STATUS ──────────────────────────────────────────────────────────────
+function buildMyStatus() {
+  var h = '<div class="card"><div class="card-title">My submissions</div>';
+  h += '<div style="display:flex;gap:8px;margin-bottom:1rem">';
+  h += '<input id="ssSearch" type="text" placeholder="Your name as submitted..." style="flex:1">';
+  h += '<button class="btn btn-primary" id="ssBtn">Search</button></div>';
+  h += '<div id="ssResults"></div></div>';
+  sh('pageContainer', h);
+  el('ssBtn').addEventListener('click', searchMyStatus);
+  el('ssSearch').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') searchMyStatus(); });
+}
+function searchMyStatus() {
+  var name = gv('ssSearch').toLowerCase().trim();
+  if (!name) { sh('ssResults','<div class="empty">Enter your name to search.</div>'); return; }
+  var mine = projects.filter(function(p) { return p.submittedBy && p.submittedBy.toLowerCase().indexOf(name) > -1; });
+  if (!mine.length) { sh('ssResults','<div class="empty">No submissions found.</div>'); return; }
+  var h = '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Submitted</th><th>Status</th></tr></thead><tbody>';
+  mine.forEach(function(p) {
+    h += '<tr><td style="font-weight:600">' + p.project + '</td><td style="font-size:12px;color:#666">' + p.pi + '</td>';
+    h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></td>';
+    h += '<td style="font-size:12px;color:#666">' + fmtDate(p.submittedDate) + '</td>';
+    h += '<td><span class="badge ' + (p.fundManagerStatus==='processed'?'badge-processed':'badge-pending') + '">' + (p.fundManagerStatus==='processed'?'Processed':'Pending') + '</span></td></tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('ssResults', h);
+}
+
+// ── LOG HOURS ──────────────────────────────────────────────────────────────
+function buildLogHours() {
+  var weeks = getFridayWeeks(12);
+  var h = '<div class="card"><div class="card-title">Log hours</div><div class="form-grid" style="margin-bottom:1rem">';
+  if (isAdmin()) {
+    h += '<div class="form-group"><label>Staff member</label><select id="logStaff"><option value="">Select staff...</option>';
+    STAFF.forEach(function(s) { h += '<option>' + s + '</option>'; });
+    h += '</select></div>';
+  }
+  h += '<div class="form-group"><label>Week ending (Friday)</label><select id="logWeek">';
+  weeks.forEach(function(w,i) { h += '<option value="' + w + '"' + (i===0?' selected':'') + '>' + fmtDate(w) + '</option>'; });
+  h += '</select></div></div>';
+  h += '<div id="logProjectsSection"><div class="empty">Loading your projects...</div></div>';
+  h += '<div class="actions"><button class="btn" id="cancelLogBtn">Cancel</button><button class="btn btn-primary" id="submitHrsBtn">Submit hours</button></div></div>';
+  sh('pageContainer', h);
+  el('cancelLogBtn').addEventListener('click', function() { renderPage('myprojects'); });
+  el('submitHrsBtn').addEventListener('click', submitHours);
+  if (isAdmin()) {
+    el('logStaff').addEventListener('change', function() { refreshLogProjects(this.value); });
+  } else {
+    refreshLogProjects(session.name);
+  }
+}
+
+function refreshLogProjects(staffName) {
+  if (!staffName) { sh('logProjectsSection','<div class="empty">Select a staff member above.</div>'); return; }
+  var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === staffName; }); });
+  if (!myP.length) { sh('logProjectsSection','<div class="alert alert-info">' + staffName + ' is not assigned to any projects.</div>'); return; }
+  var h = '';
+  myP.forEach(function(p) {
+    h += '<div class="card" style="margin-bottom:12px;padding:1rem">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">';
+    h += '<div><span style="font-weight:600">' + p.project + '</span><span style="font-size:12px;color:#888;margin-left:8px">' + p.pi + (p.department?' &middot; '+p.department:'') + '</span></div>';
+    h += '<div style="display:flex;align-items:center;gap:8px"><label style="font-size:12px">Status:</label><select id="ps_' + p.id + '" style="width:auto;font-size:12px;padding:4px 8px;border:1px solid #ccc;border-radius:6px">';
+    PROJ_STATUSES.forEach(function(s) { h += '<option' + (p.projectStatus===s?' selected':'') + '>' + s + '</option>'; });
+    h += '</select></div></div>';
+    h += '<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666"><div>Service type</div><div>Hours</div><div>Billing</div></div>';
+    SVCS.forEach(function(svc,si) {
+      h += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:8px;border-bottom:1px solid #f0f0f0;align-items:center">';
+      h += '<div style="font-size:13px">' + svc + '</div>';
+      h += '<div><input type="number" id="hrs_' + p.id + '_' + si + '" min="0" step="0.5" placeholder="0" style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px" data-proj="' + p.id + '" data-si="' + si + '" class="hrsInput"></div>';
+      h += '<div style="font-size:13px;color:#666" id="bill_' + p.id + '_' + si + '">&mdash;</div></div>';
+    });
+    h += '<div style="text-align:right;padding:8px;font-size:12px;color:#666">Total: <strong id="pWT_' + p.id + '" style="color:#185FA5">0.0 hrs &mdash; ' + fmtMoney(0) + '</strong></div></div>';
+  });
+  sh('logProjectsSection', h);
+  var staffName2 = isAdmin() ? gv('logStaff') : session.name;
+  document.querySelectorAll('.hrsInput').forEach(function(inp) {
+    inp.addEventListener('input', function() { calcBilling(this.getAttribute('data-proj'), parseInt(this.getAttribute('data-si')), staffName2); });
+  });
+}
+
+function calcBilling(projId, svcIdx, staffName) {
+  var rate = RATES[staffName] || 66.08;
+  var hrs = parseFloat((el('hrs_'+projId+'_'+svcIdx)||{}).value) || 0;
+  var bill = hrs * rate;
+  var billEl = el('bill_'+projId+'_'+svcIdx);
+  if (billEl) billEl.textContent = hrs > 0 ? fmtMoney(bill) : '—';
+  var th = 0, tb = 0;
+  SVCS.forEach(function(_,i) { var hv=parseFloat((el('hrs_'+projId+'_'+i)||{}).value)||0; th+=hv; tb+=hv*rate; });
+  var tot = el('pWT_'+projId);
+  if (tot) tot.innerHTML = th.toFixed(1) + ' hrs &mdash; ' + fmtMoney(tb);
+}
+
+function submitHours() {
+  var weekEnding = gv('logWeek');
+  var staffName = isAdmin() ? gv('logStaff') : session.name;
+  if (!staffName) { alert('Please select a staff member.'); return; }
+  var rate = RATES[staffName] || 66.08;
+  var q = getQ(weekEnding), yr = getYr(weekEnding);
+  var entries = [];
+  projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === staffName; }); }).forEach(function(p) {
+    var newStatus = gv('ps_'+p.id) || p.projectStatus;
+    SVCS.forEach(function(svc,si) {
+      var hrs = parseFloat((el('hrs_'+p.id+'_'+si)||{}).value) || 0;
+      if (hrs > 0) entries.push({id:String(nextIds.hrs++),projectId:p.id,staffName:staffName,weekEnding:weekEnding,serviceType:svc,hours:hrs,billingAmount:parseFloat((hrs*rate).toFixed(2)),pctEffort:parseFloat((hrs/520).toFixed(4)),projectStatus:newStatus,notes:'',submittedDate:new Date().toISOString().split('T')[0],quarter:q,year:yr});
+    });
+    if (newStatus !== p.projectStatus) { p.projectStatus = newStatus; saveRecord('update',projectToRow(p),'Sheet1'); }
+  });
+  if (!entries.length) { alert('No hours entered.'); return; }
+  var saves = entries.map(function(e) { hoursData.push(e); return saveRecord('add',e,'hours'); });
+  Promise.all(saves).then(function() {
+    var totH = entries.reduce(function(a,e) { return a+e.hours; }, 0);
+    var totB = entries.reduce(function(a,e) { return a+e.billingAmount; }, 0);
+    openModal('<div class="modal-title">Hours submitted</div><div class="alert alert-ok">' + entries.length + ' entries saved for week ending ' + fmtDate(weekEnding) + '.</div>' +
+      '<p style="font-size:13px;color:#666;margin-bottom:1rem"><strong>Staff:</strong> ' + staffName + '<br><strong>Total hours:</strong> ' + totH.toFixed(1) + '<br><strong>Total billing:</strong> ' + fmtMoney(totB) + '</p>' +
+      '<div class="actions"><button class="btn btn-primary" id="viewHrsBtn">View my hours</button><button class="btn" id="logMoreBtn">Log another week</button></div>');
+    el('viewHrsBtn').addEventListener('click', function() { closeModal(); renderPage('myhours'); });
+    el('logMoreBtn').addEventListener('click', function() { closeModal(); renderPage('loghours'); });
+  });
+}
+
+// ── MY HOURS ───────────────────────────────────────────────────────────────
+function buildMyHours() {
+  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">My hours &mdash; ' + session.name + '</span><button class="btn btn-sm btn-primary" id="logHrsBtn2">+ Log hours</button></div>';
+  h += '<div class="filter-row"><span style="font-size:12px;color:#666;font-weight:500">Quarter:</span>';
+  ['Q1','Q2','Q3','Q4'].forEach(function(q) { h += '<button class="qbtn' + (q===curQ()?' active':'') + '" data-q="' + q + '">' + q + '</button>'; });
+  h += '<input type="number" id="mhYear" value="' + curYr() + '" min="2020" max="2035" style="width:70px;padding:5px 8px;font-size:12px;border:1px solid #ccc;border-radius:6px;margin-left:8px">';
+  h += '</div><div id="mhContent"></div></div>';
+  sh('pageContainer', h);
+  el('logHrsBtn2').addEventListener('click', function() { renderPage('loghours'); });
+  document.querySelectorAll('[data-q]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('[data-q]').forEach(function(b) { b.className = 'qbtn'; });
+      this.className = 'qbtn active';
+      renderMyHoursTable(this.getAttribute('data-q'), parseInt(gv('mhYear')));
+    });
+  });
+  el('mhYear').addEventListener('change', function() {
+    var aq = document.querySelector('[data-q].active');
+    renderMyHoursTable(aq ? aq.getAttribute('data-q') : curQ(), parseInt(this.value));
+  });
+  renderMyHoursTable(curQ(), curYr());
+}
+function renderMyHoursTable(q, yr) {
+  var myH = hoursData.filter(function(h) { return h.staffName === session.name && h.quarter === q && h.year === yr; });
+  var tH = myH.reduce(function(a,h) { return a+h.hours; }, 0);
+  var tB = myH.reduce(function(a,h) { return a+h.billingAmount; }, 0);
+  if (!myH.length) { sh('mhContent','<div class="empty">No hours logged for ' + q + ' ' + yr + '.</div>'); return; }
+  var h = '<div class="metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:1rem">';
+  h += '<div class="metric"><div class="metric-label">' + q + ' ' + yr + ' hours</div><div class="metric-value mv-blue">' + fmtHrs(tH) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Billing</div><div class="metric-value mv-green">' + fmtMoney(tB) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">% Effort</div><div class="metric-value mv-purple">' + (tH/520*100).toFixed(1) + '%</div></div></div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr><th>Week ending</th><th>Project</th><th>Service type</th><th>Hours</th><th>Billing</th></tr></thead><tbody>';
+  myH.sort(function(a,b) { return new Date(b.weekEnding)-new Date(a.weekEnding); }).forEach(function(hh) {
+    var p = projects.filter(function(px) { return px.id === hh.projectId; })[0];
+    h += '<tr><td style="font-size:12px">' + fmtDate(hh.weekEnding) + '</td><td style="font-weight:600;font-size:12px">' + (p?p.project:hh.projectId) + '</td><td style="font-size:12px">' + hh.serviceType + '</td><td style="font-weight:500">' + fmtHrs(hh.hours) + '</td><td style="color:#3B6D11;font-weight:500">' + fmtMoney(hh.billingAmount) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('mhContent', h);
+}
+
+// ── EDIT PROJECT / JOIN ────────────────────────────────────────────────────
+function buildEditProject() {
+  var h = '<div class="card"><div class="card-title">Search, join &amp; edit projects</div>';
+  h += '<div class="filter-row"><input id="epSearch" type="text" placeholder="Search by project name or PI..." style="flex:1;min-width:200px">';
+  h += '<select id="epType"><option value="">All types</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select></div>';
+  h += '<div id="epList">' + buildEditProjectList(projects) + '</div></div>';
+  sh('pageContainer', h);
+  el('epSearch').addEventListener('input', filterEditProjects);
+  el('epType').addEventListener('change', filterEditProjects);
+  attachEditProjectHandlers();
+}
+function filterEditProjects() {
+  var q = gv('epSearch').toLowerCase(), type = gv('epType');
+  var f = projects.filter(function(p) { return (!q||(p.project+p.pi).toLowerCase().indexOf(q)>-1) && (!type||p.type===type); });
+  sh('epList', buildEditProjectList(f));
+  attachEditProjectHandlers();
+}
+function buildEditProjectList(list) {
+  if (!list.length) return '<div class="empty">No projects match your search.</div>';
+  var onTeamFn = function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); };
+  var h = '';
+  list.slice(0,20).forEach(function(p) {
+    var onTeam = onTeamFn(p);
+    h += '<div style="border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin-bottom:8px;background:#fff">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+    h += '<div><span style="font-weight:600">' + p.project + '</span><span style="font-size:12px;color:#888;margin-left:8px">' + p.pi + (p.department?' &middot; '+p.department:'') + '</span><span class="' + typeBadge(p.type) + '" style="margin-left:6px">' + typeLabel(p.type) + '</span></div>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+    if (!onTeam) h += '<button class="btn btn-sm btn-primary" data-join="' + p.id + '">+ Join</button>';
+    else h += '<span style="font-size:12px;color:#3B6D11;font-weight:500;padding:5px">&#10003; On team</span>';
+    if (canEditNow() || onTeam) h += '<button class="btn btn-sm" data-edit="' + p.id + '">Edit</button>';
+    h += '</div></div>';
+    h += '<div style="font-size:12px;color:#999;margin-top:5px">Team: ' + ((p.team||[]).map(function(m) { return m.name+(m.lead?' (Lead)':''); }).join(', ')||'Unassigned') + '</div></div>';
+  });
+  if (list.length > 20) h += '<div class="empty">Showing first 20. Refine search for more.</div>';
+  return h;
+}
+function attachEditProjectHandlers() {
+  document.querySelectorAll('[data-join]').forEach(function(btn) { btn.addEventListener('click', function() { joinProject(this.getAttribute('data-join')); }); });
+  document.querySelectorAll('[data-edit]').forEach(function(btn) { btn.addEventListener('click', function() { openEditModal(this.getAttribute('data-edit')); }); });
+}
+function joinProject(projectId) {
+  var p = projects.filter(function(x) { return x.id === projectId; })[0]; if (!p) return;
+  if ((p.team||[]).some(function(m) { return m.name === session.name; })) { alert('You are already on this project.'); return; }
+  if (canEditNow()) {
+    p.team = (p.team||[]).concat([{name:session.name,pct:null,lead:false}]);
+    if (!(p.team||[]).some(function(m) { return m.lead; })) { p.team[0].lead = true; p.lead = p.team[0].name; }
+    saveRecord('update', projectToRow(p), 'Sheet1');
+    alert('You have been added to ' + p.project);
+    renderPage('editproject');
+  } else {
+    submitApproval('join_project',p.id,p.project,'team member','',session.name+' joining as supporting staff');
+    alert('Request submitted. Admin will be notified for approval.');
+  }
+}
+function openEditModal(projectId) {
+  var p = projects.filter(function(x) { return x.id === projectId; })[0]; if (!p) return;
+  var canFunding = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
+  // Build team list HTML
+  var teamHtml = buildEditTeamHtml(p);
+  var staffOpts = '<option value="">Add staff member...</option>';
+  STAFF.concat(FACULTY).filter(function(s) { return !(p.team||[]).some(function(m) { return m.name===s; }); }).forEach(function(s) {
+    var woc = (getProfile(s).skills||[]).some(function(sk) { return sk.name === 'WOC (VA Authorization)'; });
+    staffOpts += '<option value="' + s + '">' + s + (woc?' &#127973;':'') + '</option>';
+  });
+  var deptOpts = ''; DEPTS.forEach(function(d) { deptOpts += '<option' + (p.department===d?' selected':'') + '>' + d + '</option>'; });
+  var psOpts = ''; PROJ_STATUSES.forEach(function(s) { psOpts += '<option' + (p.projectStatus===s?' selected':'') + '>' + s + '</option>'; });
+  var h = '<div class="modal-title">Edit &mdash; ' + p.project + '</div>';
+  h += '<div class="form-grid">';
+  h += '<div class="form-group"><label>Project title</label><input id="ep_project" value="' + (p.project||'').replace(/"/g,'&quot;') + '"></div>';
+  h += '<div class="form-group"><label>PI name</label><input id="ep_pi" value="' + (p.pi||'').replace(/"/g,'&quot;') + '"></div>';
+  h += '<div class="form-group"><label>Department</label><select id="ep_dept"><option value="">Select...</option>' + deptOpts + '</select></div>';
+  h += '<div class="form-group"><label>Project status</label><select id="ep_ps">' + psOpts + '</select></div>';
+  h += '<div class="form-group"><label>Start date</label><input id="ep_start" type="date" value="' + (p.start||'') + '"></div>';
+  h += '<div class="form-group"><label>End date</label><input id="ep_end" type="date" value="' + (p.end||'') + '"></div>';
+  h += '<div class="form-group"><label>Grant #</label><input id="ep_grant" value="' + (p.grant||'').replace(/"/g,'&quot;') + '"></div>';
+  h += '<div class="form-group"><label>FAU</label><input id="ep_fau" value="' + (p.fau||'').replace(/"/g,'&quot;') + '"></div>';
+  if (canFunding) {
+    h += '<div class="form-group"><label>Total value ($)</label><input id="ep_tv" type="number" value="' + (p.totalValue||'') + '"></div>';
+    h += '<div class="form-group"><label>Funds received ($)</label><input id="ep_fr" type="number" value="' + (p.fundsReceived||'') + '"></div>';
+    h += '<div class="form-group"><label>Budget target ($)</label><input id="ep_bt" type="number" value="' + (p.budgetTarget||'') + '"></div>';
+    h += '<div class="form-group"><label>FM name</label><input id="ep_fmname" value="' + (p.fmName||'').replace(/"/g,'&quot;') + '"></div>';
+    h += '<div class="form-group"><label>FM email</label><input id="ep_fmemail" value="' + (p.fmEmail||'').replace(/"/g,'&quot;') + '"></div>';
+  }
+  h += '<div class="form-group full"><label>Notes</label><textarea id="ep_notes">' + (p.notes||'') + '</textarea></div></div>';
+  h += '<div style="margin-top:1rem"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Team</div>';
+  h += '<div id="ep_team">' + teamHtml + '</div>';
+  h += '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap"><select id="ep_addStaff" style="flex:1;min-width:140px">' + staffOpts + '</select>';
+  if (p.type === 'pct') h += '<input id="ep_addPct" type="number" min="1" max="100" placeholder="%" style="width:60px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px">';
+  h += '<button class="btn btn-sm" id="addTeamMemberBtn">Add</button></div></div>';
+  h += '<div class="actions"><button class="btn" id="editCancelBtn">Cancel</button><button class="btn btn-primary" id="editSaveBtn">Save changes</button></div>';
+  openModal(h);
+  el('editCancelBtn').addEventListener('click', closeModal);
+  el('editSaveBtn').addEventListener('click', function() { saveEditProject(projectId); });
+  el('addTeamMemberBtn').addEventListener('click', function() { addToEditTeam(projectId); });
+  document.querySelectorAll('[data-setlead]').forEach(function(btn) { btn.addEventListener('click', function() { setEditLead(projectId, this.getAttribute('data-setlead')); }); });
+  document.querySelectorAll('[data-removemember]').forEach(function(btn) { btn.addEventListener('click', function() { removeFromEditTeam(projectId, this.getAttribute('data-removemember')); }); });
+}
+function buildEditTeamHtml(p) {
+  if (!(p.team||[]).length) return '<div style="font-size:12px;color:#999">No team members yet.</div>';
+  var h = '';
+  (p.team||[]).forEach(function(m) {
+    h += '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:' + (m.lead?'#EEEDFE':'#f5f5f5') + ';border:1px solid ' + (m.lead?'#AFA9EC':'#e5e5e5') + ';margin-bottom:4px">';
+    h += '<div class="initials">' + initials(m.name) + '</div>';
+    h += '<span style="font-size:12px;font-weight:500;flex:1">' + m.name + '</span>' + userBadge(m.name);
+    if (m.lead) h += '<span class="badge badge-lead">Lead</span>';
+    if (p.type==='pct'&&m.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 7px;border-radius:4px">' + m.pct + '%</span>';
+    h += '<div style="display:flex;gap:4px;margin-left:auto">';
+    if (!m.lead) h += '<button class="btn btn-sm" style="font-size:10px;padding:2px 8px" data-setlead="' + m.name + '">Set lead</button>';
+    h += '<button class="btn btn-sm btn-danger" style="font-size:10px;padding:2px 8px" data-removemember="' + m.name + '">&times;</button></div></div>';
+  });
+  return h;
+}
+function setEditLead(pid, name) {
+  var p = projects.filter(function(x) { return x.id === pid; })[0]; if (!p) return;
+  (p.team||[]).forEach(function(m) { m.lead = m.name === name; }); p.lead = name;
+  sh('ep_team', buildEditTeamHtml(p));
+  document.querySelectorAll('[data-setlead]').forEach(function(btn) { btn.addEventListener('click', function() { setEditLead(pid, this.getAttribute('data-setlead')); }); });
+  document.querySelectorAll('[data-removemember]').forEach(function(btn) { btn.addEventListener('click', function() { removeFromEditTeam(pid, this.getAttribute('data-removemember')); }); });
+}
+function removeFromEditTeam(pid, name) {
+  var p = projects.filter(function(x) { return x.id === pid; })[0]; if (!p) return;
+  if ((p.team||[]).length <= 1) { alert('A project needs at least one team member.'); return; }
+  p.team = (p.team||[]).filter(function(m) { return m.name !== name; });
+  if (!p.team.some(function(m) { return m.lead; })) { p.team[0].lead = true; p.lead = p.team[0].name; }
+  sh('ep_team', buildEditTeamHtml(p));
+  document.querySelectorAll('[data-setlead]').forEach(function(btn) { btn.addEventListener('click', function() { setEditLead(pid, this.getAttribute('data-setlead')); }); });
+  document.querySelectorAll('[data-removemember]').forEach(function(btn) { btn.addEventListener('click', function() { removeFromEditTeam(pid, this.getAttribute('data-removemember')); }); });
+}
+function addToEditTeam(pid) {
+  var p = projects.filter(function(x) { return x.id === pid; })[0]; if (!p) return;
+  var name = gv('ep_addStaff'); if (!name) return;
+  if ((p.team||[]).some(function(m) { return m.name === name; })) { alert('Already on team.'); return; }
+  var pct = p.type === 'pct' ? (parseInt(gv('ep_addPct'))||null) : null;
+  p.team = (p.team||[]).concat([{name:name,pct:pct,lead:false}]);
+  if (!p.team.some(function(m) { return m.lead; })) { p.team[0].lead = true; p.lead = p.team[0].name; }
+  sh('ep_team', buildEditTeamHtml(p));
+  el('ep_addStaff').value = '';
+  document.querySelectorAll('[data-setlead]').forEach(function(btn) { btn.addEventListener('click', function() { setEditLead(pid, this.getAttribute('data-setlead')); }); });
+  document.querySelectorAll('[data-removemember]').forEach(function(btn) { btn.addEventListener('click', function() { removeFromEditTeam(pid, this.getAttribute('data-removemember')); }); });
+}
+function saveEditProject(pid) {
+  var p = projects.filter(function(x) { return x.id === pid; })[0]; if (!p) return;
+  var canFunding = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
+  var newGrant = gv('ep_grant'), newFau = gv('ep_fau');
+  var grantChanged = newGrant !== p.grant, fauChanged = newFau !== p.fau;
+  if ((grantChanged||fauChanged) && !canFunding) submitApproval('grant_fau_change',p.id,p.project,grantChanged?'grant':'FAU',grantChanged?p.grant:p.fau,grantChanged?newGrant:newFau);
+  if (session.role === 'staff') {
+    submitApproval('project_edit',p.id,p.project,'project fields',p.project,gv('ep_project'));
+    closeModal(); alert('Change request submitted — admin will review.'); return;
+  }
+  p.project = gv('ep_project')||p.project; p.pi = gv('ep_pi')||p.pi;
+  p.department = gv('ep_dept')||p.department; p.projectStatus = gv('ep_ps')||p.projectStatus;
+  p.start = gv('ep_start')||p.start; p.end = gv('ep_end')||p.end; p.notes = gv('ep_notes');
+  if (!grantChanged||canFunding) p.grant = newGrant;
+  if (!fauChanged||canFunding) p.fau = newFau;
+  if (canFunding) {
+    p.totalValue = parseFloat(gv('ep_tv'))||p.totalValue; p.fundsReceived = parseFloat(gv('ep_fr'))||p.fundsReceived;
+    p.budgetTarget = parseFloat(gv('ep_bt'))||p.budgetTarget; p.fmName = gv('ep_fmname')||p.fmName; p.fmEmail = gv('ep_fmemail')||p.fmEmail;
+  }
+  saveRecord('update', projectToRow(p), 'Sheet1');
+  closeModal(); renderPage('allprojects');
+}
+
+// ── INTAKE FORM ────────────────────────────────────────────────────────────
+function buildIntake() {
+  intakeTeam = [];
+  var isPublic = session.role === 'public';
+  var deptOpts = '<option value="">Select department...</option>'; DEPTS.forEach(function(d){deptOpts+='<option>'+d+'</option>';});
+  var h = '<div class="card"><div class="card-title">Submit a new project collaboration</div>';
+  h += '<p style="font-size:13px;color:#666;margin-bottom:1.25rem">Fields marked * are required.</p>';
+  h += '<div class="form-grid">';
+  h += '<div class="form-group"><label>Submitter name *</label><input id="f_sub" placeholder="Your name"></div>';
+  h += '<div class="form-group"><label>PI name *</label><input id="f_pi" placeholder="Principal Investigator"></div>';
+  h += '<div class="form-group"><label>PI email' + (isPublic?' *':'') + '</label><input id="f_piemail" type="email" placeholder="pi@mednet.ucla.edu"></div>';
+  h += '<div class="form-group"><label>Department *</label><select id="f_dept">' + deptOpts + '</select></div>';
+  h += '<div class="form-group full"><label>Project / grant title *</label><input id="f_project" placeholder="Full project title"></div>';
+  h += '<div class="form-group"><label>Grant number</label><input id="f_grant" placeholder="e.g. R01AI123456"></div>';
+  h += '<div class="form-group"><label>FAU (Financial Account Unit)</label><input id="f_fau" placeholder="Free text FAU"></div>';
+  h += '<div class="form-group"><label>Fund manager name</label><input id="f_fmname" placeholder="Fund manager"></div>';
+  h += '<div class="form-group"><label>Fund manager email</label><input id="f_fmemail" type="email" placeholder="fm@mednet.ucla.edu"></div>';
+  h += '<div class="form-group"><label>Collaboration type *</label><select id="f_type"><option value="">Select type...</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select></div>';
+  h += '<div class="form-group" id="f_val_group" style="display:none"><label>Total dollar value ($)</label><input id="f_val" type="number" placeholder="e.g. 25000"></div>';
+  if (isPublic) h += '<div class="form-group"><label>Set a 4-digit PIN *</label><input id="f_pin" type="password" maxlength="4" placeholder="4 digits" pattern="[0-9]{4}" inputmode="numeric"></div>';
+  if (!isPublic) {
+    var allStaff = STAFF.concat(FACULTY);
+    var staffOpts = '<option value="">Add staff member...</option>';
+    allStaff.forEach(function(s) { var woc=(getProfile(s).skills||[]).some(function(sk){return sk.name==='WOC (VA Authorization)';}); staffOpts+='<option value="'+s+'">'+s+(woc?' &#127973;':'')+'</option>'; });
+    h += '<div class="form-group full"><label>Team assignment * <span style="font-size:11px;font-weight:400;color:#888">(first person added becomes Lead)</span></label>';
+    h += '<div id="intakeTeamBuilder" style="margin-bottom:8px"><div style="font-size:12px;color:#999;padding:8px;background:#f9f9f9;border-radius:8px">No team members added yet.</div></div>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap"><select id="addStaffSel" style="flex:1;min-width:180px">' + staffOpts + '</select>';
+    h += '<div id="pctWrap" style="display:none"><input id="addPct" type="number" min="1" max="100" placeholder="%" style="width:70px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px"></div>';
+    h += '<button class="btn btn-sm btn-primary" id="addTeamIntakeBtn">Add</button></div>';
+    h += '<div class="err-msg" id="teamError">Please add at least one team member.</div></div>';
+  }
+  h += '<div class="form-group"><label>Start date *</label><input id="f_start" type="date"></div>';
+  h += '<div class="form-group"><label>End date *</label><input id="f_end" type="date"></div>';
+  h += '<div class="form-group full"><label>Notes</label><textarea id="f_notes" placeholder="Additional context..."></textarea></div>';
+  h += '</div><div class="actions"><button class="btn btn-primary" id="submitProjBtn2">Submit project</button></div></div>';
+  sh('pageContainer', h);
+  el('f_type').addEventListener('change', function() {
+    el('f_val_group').style.display = this.value === 'pct' ? 'block' : 'none';
+    var pw = el('pctWrap'); if (pw) pw.style.display = this.value === 'pct' ? 'block' : 'none';
+    renderIntakeTeam();
+  });
+  el('submitProjBtn2').addEventListener('click', submitProject);
+  var aitb = el('addTeamIntakeBtn'); if (aitb) aitb.addEventListener('click', addTeamMember);
+}
+
+function renderIntakeTeam() {
+  var tb = el('intakeTeamBuilder'); if (!tb) return;
+  if (!intakeTeam.length) { tb.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;background:#f9f9f9;border-radius:8px">No team members added yet.</div>'; return; }
+  var type = gv('f_type');
+  var h = '';
+  intakeTeam.forEach(function(m) {
+    h += '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:8px;background:' + (m.lead?'#EEEDFE':'#f5f5f5') + ';border:1px solid ' + (m.lead?'#AFA9EC':'#e5e5e5') + ';margin-bottom:4px">';
+    h += '<div class="initials">' + initials(m.name) + '</div><span style="font-size:12px;font-weight:500;flex:1">' + m.name + '</span>' + userBadge(m.name);
+    if (m.lead) h += '<span class="badge badge-lead">Lead</span>';
+    if (type==='pct'&&m.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 7px;border-radius:4px">' + m.pct + '%</span>';
+    if (!m.lead) h += '<button class="btn btn-sm" style="font-size:10px;padding:2px 8px" data-setlead-intake="' + m.name + '">Set lead</button>';
+    h += '<button class="btn btn-sm btn-danger" style="font-size:10px;padding:2px 8px" data-remove-intake="' + m.name + '">&times;</button></div>';
+  });
+  tb.innerHTML = h;
+  document.querySelectorAll('[data-setlead-intake]').forEach(function(btn) { btn.addEventListener('click', function() { intakeTeam.forEach(function(m){m.lead=false;}); var n=this.getAttribute('data-setlead-intake'); intakeTeam.forEach(function(m){if(m.name===n)m.lead=true;}); renderIntakeTeam(); }); });
+  document.querySelectorAll('[data-remove-intake]').forEach(function(btn) { btn.addEventListener('click', function() { intakeTeam=intakeTeam.filter(function(m){return m.name!==this.getAttribute('data-remove-intake');}.bind(this)); if(intakeTeam.length&&!intakeTeam.some(function(m){return m.lead;}))intakeTeam[0].lead=true; renderIntakeTeam(); }); });
+}
+
+function addTeamMember() {
+  var name = gv('addStaffSel'); if (!name) return;
+  if (intakeTeam.some(function(m){return m.name===name;})) { alert('Already added.'); return; }
+  var pct = gv('f_type')==='pct' ? (parseInt(gv('addPct'))||null) : null;
+  intakeTeam.push({name:name, pct:pct, lead:intakeTeam.length===0});
+  el('addStaffSel').value = '';
+  renderIntakeTeam();
+}
+
+function submitProject() {
+  var sub=gv('f_sub').trim(), pi=gv('f_pi').trim(), proj=gv('f_project').trim();
+  var type=gv('f_type'), start=gv('f_start'), end=gv('f_end'), dept=gv('f_dept');
+  var isPublic=session.role==='public';
+  var piEmail=gv('f_piemail').trim(), pin=gv('f_pin')||'';
+  if (!sub||!pi||!proj||!type||!start||!end||!dept) { alert('Please fill in all required fields (*).'); return; }
+  if (isPublic&&(!piEmail||!pin||pin.length!==4||!/^[0-9]{4}$/.test(pin))) { alert('PI email and 4-digit PIN are required.'); return; }
+  if (!isPublic&&!intakeTeam.length) { el('teamError').style.display='block'; return; }
+  var bv=parseFloat(gv('f_val'))||null;
+  var record={id:String(nextIds.proj++),pi:pi,project:proj,type:type,department:dept,
+    grant:gv('f_grant')||'',fau:gv('f_fau')||'',start:start,end:end,
+    totalValue:type==='pct'?bv:null,fundsReceived:0,budgetTarget:bv,
+    status:new Date(start)>new Date()?'upcoming':'active',projectStatus:'New Project',
+    piEmail:piEmail,fmName:gv('f_fmname')||'',fmEmail:gv('f_fmemail')||'',
+    notes:gv('f_notes')||'',submittedBy:sub,submittedDate:new Date().toISOString().split('T')[0],
+    fundManagerStatus:'pending',piPin:pin,
+    lead:isPublic?'':(intakeTeam.filter(function(m){return m.lead;})[0]||{name:''}).name,
+    team:isPublic?[]:intakeTeam};
+  projects.push(record);
+  saveRecord('add',projectToRow(record),'Sheet1').then(function(ok) {
+    openModal('<div class="modal-title">Submission received</div>' +
+      '<div class="alert ' + (ok?'alert-ok':'alert-warn') + '" style="margin-bottom:1rem">' + (ok?'Saved to Google Sheets.':'Saved locally — check connection.') + '</div>' +
+      '<p style="font-size:13px;color:#555;margin-bottom:4px"><strong>Project:</strong> ' + proj + '</p>' +
+      '<p style="font-size:13px;color:#555;margin-bottom:' + (isPublic?'1rem':'4px') + '"><strong>PI:</strong> ' + pi + '</p>' +
+      (isPublic?'<p style="font-size:13px;color:#555;margin-bottom:1rem">Use your email and PIN to view your account at any time.</p>':'') +
+      '<div class="actions">' +
+      (isPublic?'<button class="btn btn-primary" id="trackBtn">Track my submission</button>':'') +
+      '<button class="btn ' + (isPublic?'':'btn-primary') + '" id="anotherBtn">Submit another</button></div>');
+    var tb = el('trackBtn'); if (tb) tb.addEventListener('click', function() { closeModal(); renderPage('mystatus'); });
+    el('anotherBtn').addEventListener('click', function() { closeModal(); renderPage('intake'); });
+  });
+}
+
+// ── BILLING & INVOICING ────────────────────────────────────────────────────
+function buildBilling() {
+  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">Hours &amp; Billing</span></div>';
+  h += '<div class="filter-row"><span style="font-size:12px;color:#666;font-weight:500">Quarter:</span>';
+  ['Q1','Q2','Q3','Q4'].forEach(function(q){h+='<button class="qbtn'+(q===curQ()?' active':'')+'" data-bq="'+q+'">'+q+'</button>';});
+  h += '<input type="number" id="bYear" value="'+curYr()+'" min="2020" max="2035" style="width:70px;padding:5px 8px;font-size:12px;border:1px solid #ccc;border-radius:6px">';
+  h += '<select id="bStaff" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="">All staff</option>';
+  STAFF.forEach(function(s){h+='<option>'+s+'</option>';}); h += '</select>';
+  h += '<select id="bPI" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="">All PIs</option>';
+  var pis=[]; projects.forEach(function(p){if(pis.indexOf(p.pi)===-1)pis.push(p.pi);}); pis.sort().forEach(function(pi){h+='<option>'+pi+'</option>';}); h += '</select>';
+  h += '</div><div id="billingContent"></div></div>';
+  sh('pageContainer', h);
+  document.querySelectorAll('[data-bq]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('[data-bq]').forEach(function(b){b.className='qbtn';}); this.className='qbtn active';
+      renderBillingTable(this.getAttribute('data-bq'), parseInt(gv('bYear')));
+    });
+  });
+  el('bYear').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(this.value)); });
+  el('bStaff').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(gv('bYear'))); });
+  el('bPI').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(gv('bYear'))); });
+  renderBillingTable(curQ(), curYr());
+}
+function renderBillingTable(q, yr) {
+  var staff=gv('bStaff'), pi=gv('bPI');
+  var filtered = hoursData.filter(function(h){ return h.quarter===q && h.year===yr && (!staff||h.staffName===staff); });
+  if (pi) { var pids=projects.filter(function(p){return p.pi===pi;}).map(function(p){return p.id;}); filtered=filtered.filter(function(h){return pids.indexOf(h.projectId)>-1;}); }
+  var tH=filtered.reduce(function(a,h){return a+h.hours;},0), tB=filtered.reduce(function(a,h){return a+h.billingAmount;},0);
+  var byProj={};
+  filtered.forEach(function(h){if(!byProj[h.projectId])byProj[h.projectId]={hours:0,billing:0,staff:{}}; byProj[h.projectId].hours+=h.hours; byProj[h.projectId].billing+=h.billingAmount; byProj[h.projectId].staff[h.staffName]=1;});
+  if (!filtered.length) { sh('billingContent','<div class="empty">No hours for '+q+' '+yr+' matching these filters.</div>'); return; }
+  var h = '<div class="metrics" style="margin-bottom:1rem">';
+  h += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-blue">'+fmtHrs(tH)+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">Total billing</div><div class="metric-value mv-green">'+fmtMoney(tB)+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">Projects billed</div><div class="metric-value mv-purple">'+Object.keys(byProj).length+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">% Effort</div><div class="metric-value mv-amber">'+(tH/520*100).toFixed(1)+'%</div></div></div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Hours</th><th>Billed</th><th>Budget remaining</th><th>Action</th></tr></thead><tbody>';
+  Object.keys(byProj).forEach(function(pid){
+    var p=projects.filter(function(x){return x.id===pid;})[0]; if(!p)return;
+    var allB=projBill(p.id), rem=p.budgetTarget?(p.budgetTarget-allB):null;
+    h+='<tr><td style="font-weight:600;font-size:12px">'+p.project+'</td><td style="font-size:12px;color:#666">'+p.pi+'</td>';
+    h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+    h+='<td style="font-weight:500">'+fmtHrs(byProj[pid].hours)+'</td>';
+    h+='<td style="color:#3B6D11;font-weight:500">'+fmtMoney(byProj[pid].billing)+'</td>';
+    h+='<td style="font-size:12px'+(rem!==null&&rem<0?';color:#A32D2D':'')+'">'+( rem!==null?fmtMoney(rem):'&mdash;')+'</td>';
+    h+='<td><button class="btn btn-sm" data-invoice="'+pid+'">Send invoice</button></td></tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('billingContent', h);
+  document.querySelectorAll('[data-invoice]').forEach(function(btn){btn.addEventListener('click',function(){sendInvoice(this.getAttribute('data-invoice'));});});
+}
+
+function sendInvoice(pid) {
+  var p=projects.filter(function(x){return x.id===pid;})[0]; if(!p)return;
+  var ph=hoursData.filter(function(h){return h.projectId===pid;});
+  var tH=ph.reduce(function(a,h){return a+h.hours;},0), tB=ph.reduce(function(a,h){return a+h.billingAmount;},0);
+  var bySvc={}; ph.forEach(function(h){if(!bySvc[h.serviceType])bySvc[h.serviceType]={hrs:0,bill:0}; bySvc[h.serviceType].hrs+=h.hours; bySvc[h.serviceType].bill+=h.billingAmount;});
+  var byQ={}; ph.forEach(function(h){var k=h.quarter+' '+h.year; if(!byQ[k])byQ[k]={hrs:0,bill:0}; byQ[k].hrs+=h.hours; byQ[k].bill+=h.billingAmount;});
+  function fmt(n){return n.toLocaleString('en-US',{style:'currency',currency:'USD'});}
+  var svcLines=Object.keys(bySvc).map(function(svc){return '  '+svc.padEnd(28,' ')+' '+bySvc[svc].hrs.toFixed(1).padStart(6,' ')+' hrs   '+fmt(bySvc[svc].bill);}).join('\n');
+  var qLines=Object.keys(byQ).map(function(q){return '  '+q.padEnd(28,' ')+' '+byQ[q].hrs.toFixed(1).padStart(6,' ')+' hrs   '+fmt(byQ[q].bill);}).join('\n');
+  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
+  var body=encodeURIComponent(
+'UCLA DEPARTMENT OF MEDICINE STATISTICS\nDOMStat Statistical Consulting Services\nInvoice Date: '+today+'\n'+'='.repeat(55)+'\n\nBILL TO\nPrincipal Investigator: '+p.pi+'\nDepartment:             '+(p.department||'N/A')+'\nProject / Grant Title:  '+p.project+'\nGrant Number:           '+(p.grant||'N/A')+'\nFAU:                    '+(p.fau||'N/A')+'\n\n'+'='.repeat(55)+'\nCHARGES BY SERVICE TYPE\n'+'-'.repeat(55)+'\n  Service                          Hours       Amount\n'+'-'.repeat(55)+'\n'+svcLines+'\n'+'-'.repeat(55)+'\n  TOTAL                        '+tH.toFixed(1).padStart(6,' ')+' hrs   '+fmt(tB)+'\n'+'='.repeat(55)+'\n\nCHARGES BY PERIOD\n'+'-'.repeat(55)+'\n'+qLines+'\n'+'='.repeat(55)+'\n\nBUDGET SUMMARY\n  Budget Target:    '+(p.budgetTarget?fmt(p.budgetTarget):'Not set')+'\n  Total Billed:     '+fmt(tB)+'\n  Remaining:        '+(p.budgetTarget?fmt(p.budgetTarget-tB):'N/A')+'\n\n'+'='.repeat(55)+'\nPAYMENT INSTRUCTIONS\nPlease remit payment via FAU: '+(p.fau||'[FAU to be provided]')+'\n\nQuestions? Contact: '+(p.fmName||'DOMStat Fund Manager')+' '+(p.fmEmail||'')+'\n\nDOMStat -- UCLA Department of Medicine Statistics\nhttps://alaventure.github.io/domstat-tracker\n'+'='.repeat(55));
+  var subject=encodeURIComponent('DOMStat Invoice -- '+p.project+' -- '+today);
+  window.location.href='mailto:'+(p.piEmail||'')+'?subject='+subject+'&body='+body;
+}
+
+// ── FUND MANAGER QUEUE ─────────────────────────────────────────────────────
+function buildFund() {
+  var pending=projects.filter(function(p){return p.fundManagerStatus==='pending';});
+  var pctP=projects.filter(function(p){return p.type==='pct';});
+  var h='<div class="card"><div class="card-title">Action required — pending ('+pending.length+')</div>';
+  if(!pending.length)h+='<div class="empty">All caught up</div>';
+  else {
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Grant/FAU</th><th>Value</th><th>Start</th><th>Submitted by</th><th>Action</th></tr></thead><tbody>';
+    pending.forEach(function(p){
+      h+='<tr><td style="font-weight:600">'+p.project+'</td><td style="font-size:12px;color:#666">'+p.pi+(p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'')+'</td>';
+      h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+      h+='<td style="font-size:12px">'+( p.grant||'&mdash;')+(p.fau?'<br><span style="color:#888">FAU: '+p.fau+'</span>':'')+'</td>';
+      h+='<td style="font-size:12px">'+fmtMoney(p.totalValue)+'</td>';
+      h+='<td style="font-size:12px">'+fmtDate(p.start)+'</td>';
+      h+='<td style="font-size:12px">'+p.submittedBy+'</td>';
+      h+='<td><button class="btn btn-sm" data-process="'+p.id+'">Mark processed</button></td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  h+='</div>';
+  if(pctP.length){
+    h+='<div class="card"><div class="card-title">% Effort payment tracker</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Grant/FAU</th><th>Period</th><th>Total value</th><th>Received</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>';
+    pctP.forEach(function(p){
+      var outs=Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0));
+      h+='<tr><td style="font-weight:600;font-size:12px">'+p.project+'</td><td style="font-size:11px;color:#666">'+p.pi+'</td>';
+      h+='<td style="font-size:11px">'+( p.grant||'&mdash;')+(p.fau?'<br>FAU: '+p.fau:'')+'</td>';
+      h+='<td style="font-size:11px;color:#666">'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+'</td>';
+      h+='<td style="font-size:12px">'+fmtMoney(p.totalValue)+'</td>';
+      h+='<td style="font-size:12px;color:#3B6D11">'+fmtMoney(p.fundsReceived)+'</td>';
+      h+='<td style="font-size:12px;color:'+(outs>0?'#A32D2D':'#3B6D11')+'">'+fmtMoney(outs)+'</td>';
+      h+='<td><span class="badge '+(p.fundManagerStatus==='processed'?'badge-processed':'badge-pending')+'">'+(p.fundManagerStatus==='processed'?'Processed':'Pending')+'</span></td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-process]').forEach(function(btn){btn.addEventListener('click',function(){markProcessed(this.getAttribute('data-process'));});});
+}
+
+// ── APPROVALS ──────────────────────────────────────────────────────────────
+function buildApprovals() {
+  var pending=approvals.filter(function(a){return a.status==='pending';});
+  var recent=approvals.filter(function(a){return a.status!=='pending';}).slice(-10).reverse();
+  var h='<div class="card"><div class="card-title">Pending approvals ('+pending.length+')</div>';
+  if(!pending.length)h+='<div class="empty">No pending approvals &mdash; all caught up</div>';
+  else pending.forEach(function(a){
+    h+='<div style="border:1px solid #e5e5e5;border-left:4px solid #EF9F27;border-radius:8px;padding:12px;margin-bottom:8px;background:#fff">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+    h+='<div><span style="font-weight:600">'+a.projectName+'</span><span class="badge badge-appr-pending" style="margin-left:8px">'+a.requestType.replace(/_/g,' ')+'</span></div>';
+    h+='<div style="display:flex;gap:6px"><button class="btn btn-sm btn-approve" data-approve="'+a.id+'">&check; Approve</button><button class="btn btn-sm btn-reject" data-reject="'+a.id+'">&times; Reject</button></div></div>';
+    h+='<div style="font-size:12px;color:#666;margin-top:6px"><strong>By:</strong> '+a.requestedBy+' on '+fmtDate(a.requestedDate)+'<br><strong>Field:</strong> '+a.fieldChanged;
+    if(a.newValue)h+='<br><strong>Proposed:</strong> '+String(a.newValue).substring(0,120);
+    h+='</div></div>';
+  });
+  h+='</div>';
+  if(recent.length){
+    h+='<div class="card"><div class="card-title">Recent decisions</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>Request</th><th>Requested by</th><th>Decision</th><th>Reviewed by</th><th>Date</th></tr></thead><tbody>';
+    recent.forEach(function(a){
+      h+='<tr><td style="font-size:12px;font-weight:600">'+a.projectName+'</td><td style="font-size:12px">'+a.requestType.replace(/_/g,' ')+'</td><td style="font-size:12px">'+a.requestedBy+'</td>';
+      h+='<td><span class="badge '+(a.status==='approved'?'badge-approved':'badge-rejected')+'">'+a.status+'</span></td>';
+      h+='<td style="font-size:12px">'+a.reviewedBy+'</td><td style="font-size:12px">'+fmtDate(a.reviewedDate)+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-approve]').forEach(function(btn){btn.addEventListener('click',function(){reviewApproval(this.getAttribute('data-approve'),'approved');});});
+  document.querySelectorAll('[data-reject]').forEach(function(btn){btn.addEventListener('click',function(){reviewApproval(this.getAttribute('data-reject'),'rejected');});});
+}
+function reviewApproval(id,decision){
+  var a=approvals.filter(function(x){return x.id===id;})[0]; if(!a)return;
+  a.status=decision; a.reviewedBy=session.name; a.reviewedDate=new Date().toISOString().split('T')[0];
+  if(decision==='approved'&&a.requestType==='join_project'){
+    var p=projects.filter(function(x){return x.id===a.projectId;})[0];
+    if(p&&!(p.team||[]).some(function(m){return m.name===a.requestedBy;})){
+      p.team=(p.team||[]).concat([{name:a.requestedBy,pct:null,lead:false}]);
+      saveRecord('update',projectToRow(p),'Sheet1');
+    }
+  }
+  saveRecord('update',a,'approvals');
+  buildApprovals();
+}
+
+// ── STAFF OVERVIEW ─────────────────────────────────────────────────────────
+function buildStaffOverview(){
+  var h='<div class="card"><div class="card-title">Staff assignments</div><div style="overflow-x:auto"><table><thead><tr><th>Staff member</th><th>Leads</th><th>Supporting</th><th>Types</th></tr></thead><tbody>';
+  STAFF.forEach(function(s){
+    var leading=projects.filter(function(p){return(p.team||[]).some(function(m){return m.name===s&&m.lead;});});
+    var supporting=projects.filter(function(p){return(p.team||[]).some(function(m){return m.name===s&&!m.lead;});});
+    var types=[]; projects.filter(function(p){return(p.team||[]).some(function(m){return m.name===s;});}).forEach(function(p){if(types.indexOf(p.type)===-1)types.push(p.type);});
+    h+='<tr><td style="font-weight:600;font-size:13px"><div style="display:flex;align-items:center;gap:8px"><div class="initials">'+initials(s)+'</div>'+s+' '+userBadge(s)+'</div></td>';
+    h+='<td>'+( leading.length?leading.map(function(p){return'<div style="font-size:12px;font-weight:600;color:#3C3489">'+p.project+'</div>';}).join(''):'<span style="color:#999;font-size:12px">&mdash;</span>')+'</td>';
+    h+='<td>'+( supporting.length?supporting.map(function(p){return'<div style="font-size:12px;color:#666">'+p.project+'</div>';}).join(''):'<span style="color:#999;font-size:12px">&mdash;</span>')+'</td>';
+    h+='<td>'+types.map(function(t){return'<span class="'+typeBadge(t)+'">'+typeLabel(t)+'</span>';}).join(' ')+'</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+  sh('pageContainer',h);
+}
+
+// ── BUDGETS ────────────────────────────────────────────────────────────────
+function buildBudgets(){
+  var h='<div class="card"><div class="card-title">Budget management</div><div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Budget target</th><th>Total billed</th><th>Remaining</th><th>Utilization</th><th>Action</th></tr></thead><tbody>';
+  projects.forEach(function(p){
+    var spent=projBill(p.id), rem=p.budgetTarget?(p.budgetTarget-spent):null;
+    var pct=p.budgetTarget?Math.min(100,Math.round(spent/p.budgetTarget*100)):0;
+    var col=pct>=100?'#E24B4A':pct>=80?'#EF9F27':'#639922';
+    h+='<tr><td style="font-weight:600;font-size:12px">'+p.project+'</td>';
+    h+='<td style="font-size:12px;color:#666">'+p.pi+(p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'')+'</td>';
+    h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+    h+='<td><input type="number" id="budget_'+p.id+'" value="'+(p.budgetTarget||'')+'" placeholder="Set budget" style="width:110px;font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"></td>';
+    h+='<td style="font-size:12px;color:#3B6D11;font-weight:500">'+fmtMoney(spent)+'</td>';
+    h+='<td style="font-size:12px;color:'+(rem!==null&&rem<0?'#A32D2D':'#3B6D11')+'">'+( rem!==null?fmtMoney(rem):'&mdash;')+'</td>';
+    h+='<td>'+(p.budgetTarget?'<div class="budget-bar" style="width:100px"><div class="budget-fill" style="width:'+pct+'%;background:'+col+'"></div></div><div style="font-size:10px;color:#888;margin-top:2px">'+pct+'%</div>':'&mdash;')+'</td>';
+    h+='<td><button class="btn btn-sm" data-savebudget="'+p.id+'">Save</button></td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-savebudget]').forEach(function(btn){btn.addEventListener('click',function(){
+    var id=this.getAttribute('data-savebudget');
+    var p=projects.filter(function(x){return x.id===id;})[0]; if(!p)return;
+    p.budgetTarget=parseFloat(gv('budget_'+id))||null;
+    saveRecord('update',projectToRow(p),'Sheet1');
+    buildBudgets();
+  });});
+}
+
+// ── FACULTY REPORTING ──────────────────────────────────────────────────────
+function buildFacultyReporting(activeTab){
+  activeTab=activeTab||'hours';
+  var h='<div class="card"><div class="card-title">Faculty reporting &mdash; '+(session.name||'Faculty')+'</div>';
+  h+='<div class="tab-group" style="margin-bottom:1.5rem">';
+  h+='<button class="tab-btn'+(activeTab==='hours'?' active':'')+'" data-frtab="hours">Hours</button>';
+  h+='<button class="tab-btn'+(activeTab==='pubs'?' active':'')+'" data-frtab="pubs">Publications</button>';
+  h+='<button class="tab-btn'+(activeTab==='grants'?' active':'')+'" data-frtab="grants">Grants</button>';
+  h+='</div><div id="frContent"></div></div>';
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-frtab]').forEach(function(btn){
+    btn.addEventListener('click',function(){buildFacultyReporting(this.getAttribute('data-frtab'));});
+  });
+  if(activeTab==='hours')buildFRHours();
+  else if(activeTab==='pubs')buildFRPubs();
+  else buildFRGrants();
+}
+
+function deptOpts(sel){var o='<option value="">Select...</option>';DEPTS.forEach(function(d){o+='<option'+(d===sel?' selected':'')+'>'+d+'</option>';});return o;}
+function qOpts(){var o='';['Q1','Q2','Q3','Q4'].forEach(function(q){o+='<option'+(q===curQ()?' selected':'')+'>'+ q+'</option>';});return o;}
+
+function buildFRHours(){
+  var mine=facultyHours.filter(function(h){return h.facultyName===session.name;}).slice(-8).reverse();
+  var h='<div class="form-grid">';
+  h+='<div class="form-group"><label>Investigator *</label><input id="fr_inv" placeholder="First Last"></div>';
+  h+='<div class="form-group"><label>Department *</label><select id="fr_dept">'+deptOpts()+'</select></div>';
+  h+='<div class="form-group"><label>Quarter</label><select id="fr_q">'+qOpts()+'</select></div>';
+  h+='<div class="form-group"><label>Year</label><input id="fr_yr" type="number" value="'+curYr()+'"></div>';
+  h+='<div class="form-group"><label>Period of performance &mdash; start</label><input id="fr_pstart" type="date"></div>';
+  h+='<div class="form-group"><label>Period of performance &mdash; end</label><input id="fr_pend" type="date"></div>';
+  h+='<div class="form-group"><label>Funding source</label><input id="fr_fsrc" placeholder="e.g. CTSI Pilot Award, NIH R01..."></div>';
+  h+='<div class="form-group"><label>CTSI?</label><select id="fr_ctsi"><option value="yes">Yes</option><option value="no">No</option></select></div>';
+  h+='</div><div style="margin:1rem 0">';
+  h+='<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Hours by service category</div>';
+  h+='<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666"><div>Category</div><div>Hours</div></div>';
+  FAC_SVCS.forEach(function(svc,i){
+    h+='<div style="display:grid;grid-template-columns:2fr 1fr;padding:8px;border-bottom:1px solid #f0f0f0;align-items:center"><div style="font-size:13px">'+svc+'</div>';
+    h+='<div><input type="number" id="fh_'+i+'" min="0" step="0.5" placeholder="0" class="frHrsInput" data-fi="'+i+'" style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px"></div></div>';
+  });
+  h+='<div style="text-align:right;padding:8px;font-size:12px;color:#666">Total: <strong id="frTotal" style="color:#185FA5">0.0 hrs</strong></div></div>';
+  h+='<div class="form-group" style="margin-bottom:1rem"><label>Description of services</label><textarea id="fr_desc"></textarea></div>';
+  h+='<div class="actions"><button class="btn btn-primary" id="submitFRHours">Submit hours entry</button></div>';
+  if(mine.length){
+    h+='<div style="margin-top:2rem"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Recent entries</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Period</th><th>Investigator</th><th>Dept</th><th>Total hrs</th><th>CTSI</th></tr></thead><tbody>';
+    mine.forEach(function(hh){h+='<tr><td style="font-size:12px">'+hh.quarter+' '+hh.year+'</td><td style="font-weight:500">'+hh.investigator+'</td><td style="font-size:12px;color:#888">'+hh.department+'</td><td style="font-weight:500">'+fmtHrs(hh.totalHours)+'</td><td>'+(hh.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;')+'</td></tr>';});
+    h+='</tbody></table></div></div>';
+  }
+  sh('frContent',h);
+  document.querySelectorAll('.frHrsInput').forEach(function(inp){inp.addEventListener('input',function(){var t=0;FAC_SVCS.forEach(function(_,i){t+=parseFloat((el('fh_'+i)||{}).value)||0;});var te=el('frTotal');if(te)te.textContent=t.toFixed(1)+' hrs';});});
+  el('submitFRHours').addEventListener('click',function(){
+    var inv=gv('fr_inv').trim(),dept=gv('fr_dept');
+    if(!inv||!dept){alert('Investigator and department required.');return;}
+    var svcs={};FAC_SVCS.forEach(function(svc,i){svcs[svc]=parseFloat((el('fh_'+i)||{}).value)||0;});
+    var total=Object.keys(svcs).reduce(function(a,k){return a+svcs[k];},0);
+    var rec={id:String(nextIds.fh++),facultyName:session.name,investigator:inv,department:dept,
+      period:gv('fr_q')+' '+gv('fr_yr'),quarter:gv('fr_q'),year:parseInt(gv('fr_yr')),
+      dataAnalysis:svcs['Data Analysis']||0,grantApplication:svcs['Grant Application']||0,
+      administration:svcs['Administration']||0,studyDesign:svcs['Study Design']||0,
+      dataManagement:svcs['Data Management']||0,totalHours:total,
+      serviceDescription:gv('fr_desc'),ctsi:gv('fr_ctsi'),
+      fundingSource:gv('fr_fsrc'),perfStart:gv('fr_pstart'),perfEnd:gv('fr_pend'),
+      submittedDate:new Date().toISOString().split('T')[0]};
+    facultyHours.push(rec);
+    saveRecord('add',rec,'facultyHours');
+    alert('Hours entry submitted.');
+    buildFRHours();
+  });
+}
+
+function buildFRPubs(){
+  var mine=facultyPubs.filter(function(p){return p.facultyName===session.name;}).slice(-5).reverse();
+  var statusOpts=''; PUB_STATUSES.forEach(function(s){statusOpts+='<option>'+s+'</option>';});
+  var h='<div class="form-grid">';
+  h+='<div class="form-group"><label>Investigator *</label><input id="fp_inv" placeholder="First Last"></div>';
+  h+='<div class="form-group"><label>Department *</label><select id="fp_dept">'+deptOpts()+'</select></div>';
+  h+='<div class="form-group full"><label>Citation *</label><textarea id="fp_cit" placeholder="Full citation..."></textarea></div>';
+  h+='<div class="form-group"><label>Status *</label><select id="fp_status"><option value="">Select...</option>'+statusOpts+'</select></div>';
+  h+='<div class="form-group"><label>New or Updated</label><select id="fp_nu"><option value="New">New</option><option value="Updated Status">Updated Status</option></select></div>';
+  h+='<div class="form-group"><label>Quarter</label><select id="fp_q">'+qOpts()+'</select></div>';
+  h+='<div class="form-group"><label>Year</label><input id="fp_yr" type="number" value="'+curYr()+'"></div>';
+  h+='<div class="form-group"><label>CTSI?</label><select id="fp_ctsi"><option value="yes">Yes</option><option value="no">No</option></select></div>';
+  h+='<div class="form-group"><label>Funding source</label><input id="fp_fsrc"></div>';
+  h+='<div class="form-group"><label>Period of performance &mdash; start</label><input id="fp_pstart" type="date"></div>';
+  h+='<div class="form-group"><label>Period of performance &mdash; end</label><input id="fp_pend" type="date"></div>';
+  h+='<div class="form-group full"><label>Notes</label><textarea id="fp_notes"></textarea></div></div>';
+  h+='<div class="actions"><button class="btn btn-primary" id="submitFRPub">Submit publication</button></div>';
+  if(mine.length){
+    h+='<div style="margin-top:2rem"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Recent submissions</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Investigator</th><th>Status</th><th>Period</th><th>CTSI</th><th>Citation (excerpt)</th></tr></thead><tbody>';
+    mine.forEach(function(p){h+='<tr><td style="font-weight:500">'+p.investigator+'</td><td><span class="badge badge-pending">'+p.status+'</span></td><td style="font-size:12px">'+p.quarter+' '+p.year+'</td><td>'+(p.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;')+'</td><td style="font-size:11px;color:#666">'+(p.citation||'').substring(0,80)+'&hellip;</td></tr>';});
+    h+='</tbody></table></div></div>';
+  }
+  sh('frContent',h);
+  el('submitFRPub').addEventListener('click',function(){
+    var inv=gv('fp_inv').trim(),dept=gv('fp_dept'),cit=gv('fp_cit').trim(),status=gv('fp_status');
+    if(!inv||!dept||!cit||!status){alert('Investigator, department, citation and status required.');return;}
+    var rec={id:String(nextIds.fp++),facultyName:session.name,investigator:inv,department:dept,citation:cit,status:status,newUpdated:gv('fp_nu'),period:gv('fp_q')+' '+gv('fp_yr'),quarter:gv('fp_q'),year:parseInt(gv('fp_yr')),ctsi:gv('fp_ctsi'),fundingSource:gv('fp_fsrc'),perfStart:gv('fp_pstart'),perfEnd:gv('fp_pend'),notes:gv('fp_notes'),submittedDate:new Date().toISOString().split('T')[0]};
+    facultyPubs.push(rec); saveRecord('add',rec,'facultyPublications'); alert('Publication submitted.'); buildFRPubs();
+  });
+}
+
+function buildFRGrants(){
+  var mine=facultyGrants.filter(function(g){return g.facultyName===session.name;}).slice(-5).reverse();
+  var gtOpts=''; GRANT_TYPES.forEach(function(t){gtOpts+='<option>'+t+'</option>';});
+  var gsOpts=''; GRANT_STATUSES.forEach(function(s){gsOpts+='<option>'+s+'</option>';});
+  var h='<div class="form-grid">';
+  h+='<div class="form-group"><label>Investigator *</label><input id="fg_inv" placeholder="First Last"></div>';
+  h+='<div class="form-group"><label>Department *</label><select id="fg_dept">'+deptOpts()+'</select></div>';
+  h+='<div class="form-group full"><label>Grant title</label><input id="fg_title" placeholder="Full grant title"></div>';
+  h+='<div class="form-group"><label>Grant type *</label><select id="fg_gtype"><option value="">Select...</option>'+gtOpts+'</select></div>';
+  h+='<div class="form-group"><label>Status *</label><select id="fg_status"><option value="">Select...</option>'+gsOpts+'</select></div>';
+  h+='<div class="form-group"><label>New or Updated</label><select id="fg_nu"><option value="New">New</option><option value="Updated Status">Updated Status</option></select></div>';
+  h+='<div class="form-group"><label>Quarter</label><select id="fg_q">'+qOpts()+'</select></div>';
+  h+='<div class="form-group"><label>Year</label><input id="fg_yr" type="number" value="'+curYr()+'"></div>';
+  h+='<div class="form-group"><label>CTSI?</label><select id="fg_ctsi"><option value="yes">Yes</option><option value="no">No</option></select></div>';
+  h+='<div class="form-group"><label>Funding source</label><input id="fg_fsrc"></div>';
+  h+='<div class="form-group"><label>Period of performance &mdash; start</label><input id="fg_pstart" type="date"></div>';
+  h+='<div class="form-group"><label>Period of performance &mdash; end</label><input id="fg_pend" type="date"></div>';
+  h+='<div class="form-group full"><label>Notes</label><textarea id="fg_notes"></textarea></div></div>';
+  h+='<div class="actions"><button class="btn btn-primary" id="submitFRGrant">Submit grant</button></div>';
+  if(mine.length){
+    h+='<div style="margin-top:2rem"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Recent submissions</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Investigator</th><th>Type</th><th>Status</th><th>Period</th><th>CTSI</th></tr></thead><tbody>';
+    mine.forEach(function(g){h+='<tr><td style="font-weight:500">'+g.investigator+'</td><td style="font-size:12px">'+g.grantType+'</td><td><span class="badge '+(g.status==='Funded'?'badge-approved':'badge-pending')+'">'+g.status+'</span></td><td style="font-size:12px">'+g.quarter+' '+g.year+'</td><td>'+(g.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;')+'</td></tr>';});
+    h+='</tbody></table></div></div>';
+  }
+  sh('frContent',h);
+  el('submitFRGrant').addEventListener('click',function(){
+    var inv=gv('fg_inv').trim(),dept=gv('fg_dept'),gtype=gv('fg_gtype'),status=gv('fg_status');
+    if(!inv||!dept||!gtype||!status){alert('Investigator, department, grant type and status required.');return;}
+    var rec={id:String(nextIds.fg++),facultyName:session.name,investigator:inv,department:dept,grantTitle:gv('fg_title'),grantType:gtype,status:status,newUpdated:gv('fg_nu'),period:gv('fg_q')+' '+gv('fg_yr'),quarter:gv('fg_q'),year:parseInt(gv('fg_yr')),ctsi:gv('fg_ctsi'),fundingSource:gv('fg_fsrc'),perfStart:gv('fg_pstart'),perfEnd:gv('fg_pend'),notes:gv('fg_notes'),submittedDate:new Date().toISOString().split('T')[0]};
+    facultyGrants.push(rec); saveRecord('add',rec,'facultyGrants'); alert('Grant submitted.'); buildFRGrants();
+  });
+}
+
+// ── MY PROFILE ─────────────────────────────────────────────────────────────
+function buildMyProfile(){
+  var name=session.name;
+  var profile=getProfile(name);
+  var tax=getAllSkills();
+  var skillMap={};(profile.skills||[]).forEach(function(s){skillMap[s.name]={level:s.level,category:s.category};});
+  var pendingMine=skillRequests.filter(function(r){return r.requestedBy===name&&r.status==='pending';});
+  var h='<div class="card">';
+  h+='<div style="display:flex;align-items:center;gap:14px;margin-bottom:1.5rem;flex-wrap:wrap">';
+  h+='<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
+  h+='<div><div style="font-size:17px;font-weight:600">'+name+'</div><div style="margin-top:4px">'+roleBadgeHtml()+'</div></div></div>';
+  if(pendingMine.length)h+='<div class="alert alert-info" style="margin-bottom:1rem">You have <strong>'+pendingMine.length+'</strong> pending skill request'+(pendingMine.length>1?'s':'')+': '+pendingMine.map(function(r){return'<em>'+r.skillName+'</em>';}).join(', ')+' &mdash; awaiting admin approval</div>';
+  h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px">Current skills</div>';
+  h+='<div id="profileSkillsPreview" style="margin-bottom:1.5rem;min-height:32px">'+(profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>')+'</div>';
+  h+='<div style="border-top:1px solid #f0f0f0;padding-top:1rem;font-size:13px;font-weight:600;margin-bottom:1rem">Edit skills &amp; competencies</div>';
+  Object.keys(tax).forEach(function(cat){
+    h+='<div style="margin-bottom:1.25rem"><div style="font-size:11px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">'+cat+'</div>';
+    h+='<div style="display:flex;flex-wrap:wrap;gap:5px">';
+    tax[cat].forEach(function(skill){
+      var cur=skillMap[skill];
+      var idSafe='sk_'+cat.replace(/\W/g,'_')+'_'+skill.replace(/\W/g,'_');
+      h+='<div style="display:inline-flex;align-items:center;border:1px solid '+(cur?'#185FA5':'#e5e5e5')+';border-radius:8px;overflow:hidden;background:'+(cur?'#E6F1FB':'#fafafa')+'">';
+      h+='<label style="display:flex;align-items:center;gap:5px;padding:5px 9px;cursor:pointer;font-size:12px;font-weight:'+(cur?'600':'400')+';color:'+(cur?'#185FA5':'#666')+'">';
+      h+='<input type="checkbox" data-skill-cat="'+cat+'" data-skill-name="'+skill+'" id="'+idSafe+'" '+(cur?'checked':'')+' style="accent-color:#185FA5;width:13px;height:13px">';
+      h+=(skill==='WOC (VA Authorization)'?'&#127973; ':'')+skill+'</label>';
+      if(cur){
+        h+='<select data-skill-level-cat="'+cat+'" data-skill-level-name="'+skill+'" style="font-size:11px;border:none;border-left:1px solid #b5d4f4;background:#E6F1FB;color:#185FA5;padding:5px 6px;cursor:pointer;font-weight:500">';
+        PROF_LEVELS.forEach(function(l){h+='<option'+(( cur.level||'Proficient')===l?' selected':'')+'>'+l+'</option>';});
+        h+='</select>';
+      }
+      h+='</div>';
+    });
+    h+='<button class="btn btn-sm" style="font-size:11px;border-style:dashed;color:#999;padding:5px 10px" data-req-cat="'+cat+'">+ Other</button>';
+    h+='</div></div>';
+  });
+  h+='<div class="actions"><button class="btn btn-primary" id="saveProfileBtn">Save profile</button></div>';
+  if(profile.updatedDate)h+='<div style="font-size:11px;color:#ccc;margin-top:8px;text-align:right">Last updated '+fmtDate(profile.updatedDate)+'</div>';
+  h+='</div>';
+  sh('pageContainer',h);
+  // Skill checkboxes
+  document.querySelectorAll('[data-skill-cat]').forEach(function(cb){
+    cb.addEventListener('change',function(){
+      var cat=this.getAttribute('data-skill-cat'), skill=this.getAttribute('data-skill-name');
+      var p=profilesData[name]||{skills:[],updatedDate:''};
+      if(!p.skills)p.skills=[];
+      if(this.checked){if(!p.skills.some(function(s){return s.name===skill;}))p.skills.push({name:skill,category:cat,level:'Proficient'});}
+      else{p.skills=p.skills.filter(function(s){return s.name!==skill;});}
+      profilesData[name]=p;
+      sh('profileSkillsPreview',profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>');
+      buildMyProfile();
+    });
+  });
+  // Level dropdowns
+  document.querySelectorAll('[data-skill-level-cat]').forEach(function(sel){
+    sel.addEventListener('change',function(){
+      var cat=this.getAttribute('data-skill-level-cat'), skill=this.getAttribute('data-skill-level-name');
+      var p=profilesData[name]||{skills:[]};
+      var entry=p.skills.filter(function(s){return s.name===skill;})[0];
+      if(entry)entry.level=this.value;
+      profilesData[name]=p;
+      sh('profileSkillsPreview',profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>');
+    });
+  });
+  // Other (request new skill)
+  document.querySelectorAll('[data-req-cat]').forEach(function(btn){
+    btn.addEventListener('click',function(){requestNewSkill(this.getAttribute('data-req-cat'));});
+  });
+  el('saveProfileBtn').addEventListener('click',saveMyProfile);
+}
+
+function saveMyProfile(){
+  var p=profilesData[session.name]||{skills:[]};
+  p.updatedDate=new Date().toISOString().split('T')[0];
+  profilesData[session.name]=p;
+  var rec={staffName:session.name,skills:JSON.stringify(p.skills||[]),updatedDate:p.updatedDate};
+  saveRecord('upsert',rec,'profiles').then(function(){
+    openModal('<div class="modal-title">Profile saved</div><div class="alert alert-ok">Your skills profile has been updated.</div><div class="actions"><button class="btn btn-primary" id="profileOkBtn">OK</button></div>');
+    el('profileOkBtn').addEventListener('click',closeModal);
+  });
+}
+
+function requestNewSkill(category){
+  openModal('<div class="modal-title">Request new skill &mdash; '+category+'</div>' +
+    '<p style="font-size:13px;color:#666;margin-bottom:1rem">Suggest a skill to add to the <strong>'+category+'</strong> list. Admin will review before it appears for everyone.</p>' +
+    '<div class="form-group" style="margin-bottom:1rem"><label>Skill name *</label><input id="newSkillName" placeholder="e.g. Network Meta-Analysis"></div>' +
+    '<div class="actions"><button class="btn" id="reqCancelBtn">Cancel</button><button class="btn btn-primary" id="reqSubmitBtn">Submit for review</button></div>');
+  el('reqCancelBtn').addEventListener('click',closeModal);
+  el('reqSubmitBtn').addEventListener('click',function(){
+    var skillName=gv('newSkillName').trim();
+    if(!skillName){alert('Please enter a skill name.');return;}
+    var tax=getAllSkills();
+    if((tax[category]||[]).some(function(s){return s.toLowerCase()===skillName.toLowerCase();})){alert('This skill already exists.');return;}
+    if(skillRequests.some(function(r){return r.skillName.toLowerCase()===skillName.toLowerCase()&&r.status==='pending';})){alert('A request for this skill is already pending.');closeModal();return;}
+    var rec={id:String(nextIds.sr++),requestedBy:session.name,category:category,skillName:skillName,status:'pending',requestedDate:new Date().toISOString().split('T')[0],reviewedBy:'',reviewedDate:''};
+    skillRequests.push(rec);
+    saveRecord('add',rec,'skillRequests');
+    closeModal();
+    openModal('<div class="modal-title">Request submitted</div><div class="alert alert-ok">Your request to add <strong>'+skillName+'</strong> to the '+category+' list has been sent for review.</div><div class="actions"><button class="btn btn-primary" id="reqOkBtn">OK</button></div>');
+    el('reqOkBtn').addEventListener('click',closeModal);
+  });
+}
+
+// ── STAFF SKILLS DIRECTORY ─────────────────────────────────────────────────
+function buildStaffSkills(){
+  var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']);
+  var tax=getAllSkills();
+  var allSkillsList=Object.keys(tax).reduce(function(a,k){return a.concat(tax[k]);});
+  var pendingReqs=skillRequests.filter(function(r){return r.status==='pending';});
+  var h='<div class="card"><div class="section-hdr" style="margin-bottom:1rem">';
+  h+='<span class="card-title" style="margin:0">Staff skills &amp; competencies</span>';
+  if(canApprove()&&pendingReqs.length)h+='<span class="badge badge-appr-pending">'+pendingReqs.length+' skill request'+(pendingReqs.length>1?'s':'')+' pending</span>';
+  h+='</div>';
+  h+='<div class="filter-row"><input id="ssName" type="text" placeholder="Search name..." style="width:150px"><select id="ssCat"><option value="">All categories</option>';
+  Object.keys(tax).forEach(function(c){h+='<option>'+c+'</option>';});
+  h+='</select><select id="ssSkill"><option value="">Filter by skill...</option>';
+  allSkillsList.forEach(function(s){h+='<option>'+s+'</option>';});
+  h+='</select><select id="ssLevel"><option value="">Any level</option>';
+  PROF_LEVELS.forEach(function(l){h+='<option>'+l+'</option>';});
+  h+='</select></div>';
+  if(canApprove()&&pendingReqs.length){
+    h+='<div style="border:1px solid #e5e5e5;border-left:4px solid #EF9F27;border-radius:8px;padding:14px;margin-bottom:1.5rem;background:#FFFDF7">';
+    h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px">Pending skill additions ('+pendingReqs.length+')</div>';
+    pendingReqs.forEach(function(r){
+      h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;flex-wrap:wrap;gap:6px">';
+      h+='<div><strong style="font-size:13px">'+r.skillName+'</strong><span style="font-size:12px;color:#888;margin-left:6px">&mdash; '+r.category+'</span><span style="font-size:12px;color:#666;margin-left:6px">by '+r.requestedBy+'</span></div>';
+      h+='<div style="display:flex;gap:6px"><button class="btn btn-sm btn-approve" data-approve-skill="'+r.id+'">&check; Approve</button><button class="btn btn-sm btn-reject" data-reject-skill="'+r.id+'">&times; Reject</button></div></div>';
+    });
+    h+='</div>';
+  }
+  h+='<div id="ssGrid">'+buildSkillGrid(allStaff)+'</div></div>';
+  sh('pageContainer',h);
+  ['ssName','ssCat','ssSkill','ssLevel'].forEach(function(id){
+    var e=el(id); if(e)e.addEventListener('input',refreshSkillGrid); if(e)e.addEventListener('change',refreshSkillGrid);
+  });
+  document.querySelectorAll('[data-approve-skill]').forEach(function(btn){btn.addEventListener('click',function(){approveSkillRequest(this.getAttribute('data-approve-skill'));});});
+  document.querySelectorAll('[data-reject-skill]').forEach(function(btn){btn.addEventListener('click',function(){rejectSkillRequest(this.getAttribute('data-reject-skill'));});});
+}
+
+function refreshSkillGrid(){
+  var search=(gv('ssName')||'').toLowerCase();
+  var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']).filter(function(n){return !search||n.toLowerCase().indexOf(search)>-1;});
+  sh('ssGrid',buildSkillGrid(allStaff));
+}
+
+function buildSkillGrid(staffList){
+  var skill=gv('ssSkill'),level=gv('ssLevel'),cat=gv('ssCat');
+  var tax=getAllSkills(), cats=Object.keys(tax);
+  var filtered=staffList.filter(function(name){
+    var skills=getProfile(name).skills||[];
+    if(skill&&!skills.some(function(s){return s.name===skill&&(!level||s.level===level);}))return false;
+    if(level&&!skill&&!skills.some(function(s){return s.level===level;}))return false;
+    if(cat&&!skills.some(function(s){return s.category===cat;}))return false;
+    return true;
+  });
+  if(!filtered.length)return'<div class="empty">No staff match current filters.</div>';
+  var h='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">';
+  filtered.forEach(function(name){
+    var p=getProfile(name), skills=p.skills||[];
+    var hasWOC=skills.some(function(s){return s.name==='WOC (VA Authorization)';});
+    h+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:#fff;'+(hasWOC?'border-top:3px solid #EF9F27':'')+'">';
+    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
+    h+='<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
+    h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+name+'</div><div style="margin-top:2px">'+userBadge(name)+'</div></div>';
+    if(hasWOC)h+='<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#FAEEDA;color:#854F0B;font-weight:600;flex-shrink:0">&#127973; WOC</span>';
+    h+='</div>';
+    if(skills.length){cats.forEach(function(c){var cs=skills.filter(function(s){return s.category===c;});if(!cs.length)return;h+='<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c+'</div><div>';cs.forEach(function(s){h+=skillBadge(s);});h+='</div></div>';});}
+    else h+='<div style="font-size:12px;color:#ccc;font-style:italic">No skills listed</div>';
+    if(p.updatedDate)h+='<div style="font-size:10px;color:#ddd;margin-top:6px">Updated '+fmtDate(p.updatedDate)+'</div>';
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
+function approveSkillRequest(id){
+  var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
+  req.status='approved'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
+  saveRecord('update',req,'skillRequests');
+  buildStaffSkills();
+}
+function rejectSkillRequest(id){
+  var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
+  req.status='rejected'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
+  saveRecord('update',req,'skillRequests');
+  buildStaffSkills();
+}
+
+// ── Start ──────────────────────────────────────────────────────────────────
+showLogin();
+
 </script>
 </body>
 </html>
