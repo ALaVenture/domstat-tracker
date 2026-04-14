@@ -117,16 +117,16 @@ const ROLE_PAGES={
   staffmgr:["dashboard","allprojects","loghours","myhours","myprofile","staffskills","editproject","intake"],
   faculty:["dashboard","allprojects","facultyreporting","myprofile","staffskills","editproject","intake"],
   fund:["dashboard","allprojects","billing","fund","staffskills"],
-  admin:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","staffview","budgets","approvals","editproject","intake"],
-  assocdir:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","staffview","budgets","approvals","editproject","intake"],
-  director:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","staffview","budgets","approvals","editproject","intake"]
+  admin:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","facultydb","staffview","budgets","approvals","editproject","intake"],
+  assocdir:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","facultydb","staffview","budgets","approvals","editproject","intake"],
+  director:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","facultydb","staffview","budgets","approvals","editproject","intake"]
 };
 const PAGE_LABELS={
   pidashboard:"My Dashboard",dashboard:"Dashboard",myprojects:"My Projects",allprojects:"All Projects",
   loghours:"Log Hours",myhours:"My Hours",facultyreporting:"Faculty Reporting",
   billing:"Hours & Billing",fund:"Fund Manager Queue",staffview:"Staff Overview",
   budgets:"Budget Management",approvals:"Pending Approvals",editproject:"Edit Project",
-  intake:"Submit Project",mystatus:"My Submissions",myprofile:"My Profile",staffskills:"Staff Skills"
+  intake:"Submit Project",mystatus:"My Submissions",myprofile:"My Profile",staffskills:"Staff Skills",facultydb:"Faculty Database"
 };
 const PROF_BG={Beginner:"#E6F1FB",Proficient:"#EAF3DE",Expert:"#EEEDFE"};
 const PROF_COL={Beginner:"#185FA5",Proficient:"#3B6D11",Expert:"#3C3489"};
@@ -295,6 +295,9 @@ function loadData(manual){
     });
     skillRequests=[];
     if(Array.isArray(srd)){skillRequests=srd.filter(function(r){return r.id;});}
+    fetchSheet("facultyHours").then(function(d){if(Array.isArray(d))facultyHours=d.filter(function(r){return r.id;});});
+    fetchSheet("facultyPublications").then(function(d){if(Array.isArray(d))facultyPubs=d.filter(function(r){return r.id;});});
+    fetchSheet("facultyGrants").then(function(d){if(Array.isArray(d))facultyGrants=d.filter(function(r){return r.id;});});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
     renderNav();
@@ -524,7 +527,7 @@ function renderPage(p) {
     staffview: buildStaffOverview, budgets: buildBudgets,
     approvals: buildApprovals, editproject: buildEditProject,
     intake: buildIntake, mystatus: buildMyStatus,
-    myprofile: buildMyProfile, staffskills: buildStaffSkills
+    myprofile: buildMyProfile, staffskills: buildStaffSkills, facultydb: buildFacultyDB
   };
   try {
     (fns[p] || buildIntake)();
@@ -690,11 +693,14 @@ function buildDashboard() {
   
   }h += '</div>';
   if (alerts) h += '<div class="card"><div class="card-title">Alerts</div>' + alerts + '</div>';
-  h += '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">' + (isStaff?'My projects':'All projects') + ' (' + myP.length + ')</span></div>';
-  if (!myP.length) { h += '<div class="empty">No projects yet.</div>'; }
+  h += '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">' + (isFaculty?'My projects':isStaff?'My projects':'All projects') + ' (' + myP.length + ')</span></div>';
+  if (!myP.length) {
+    if (isFaculty) h += '<div class="empty">No projects are currently assigned to you. Projects will appear here when you are added as a team member or listed as PI.</div>';
+    else h += '<div class="empty">No projects yet.</div>';
+  }
   else {
     h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Team</th><th>Status</th>' + (canFunds?'<th>Budget</th>':'') + '</tr></thead><tbody>';
-    myP.slice(0,8).forEach(function(p) {
+    (isFaculty ? myP : myP.slice(0,8)).forEach(function(p) {
       h += '<tr style="cursor:pointer" data-detail="' + p.id + '">';
       h += '<td style="font-weight:600">' + p.project + '</td>';
       h += '<td style="font-size:12px;color:#666">' + p.pi + (p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'') + '</td>';
@@ -1472,328 +1478,546 @@ function buildBudgets(){
   });});
 }
 
-// ── FACULTY REPORTING ──────────────────────────────────────────────────────
-function buildFacultyReporting(activeTab){
-  activeTab=activeTab||'hours';
-  var h='<div class="card"><div class="card-title">Faculty reporting &mdash; '+(session.name||'Faculty')+'</div>';
-  h+='<div class="tab-group" style="margin-bottom:1.5rem">';
-  h+='<button class="tab-btn'+(activeTab==='hours'?' active':'')+'" data-frtab="hours">Hours</button>';
-  h+='<button class="tab-btn'+(activeTab==='pubs'?' active':'')+'" data-frtab="pubs">Publications</button>';
-  h+='<button class="tab-btn'+(activeTab==='grants'?' active':'')+'" data-frtab="grants">Grants</button>';
-  h+='</div><div id="frContent"></div></div>';
-  sh('pageContainer',h);
-  document.querySelectorAll('[data-frtab]').forEach(function(btn){
-    btn.addEventListener('click',function(){buildFacultyReporting(this.getAttribute('data-frtab'));});
+// ── FACULTY REPORTING (rewritten with full edit capability) ────────────────
+function buildFacultyReporting(activeTab) {
+  activeTab = activeTab || 'hours';
+  var h = '<div class="card">';
+  h += '<div class="card-title">Faculty reporting &mdash; ' + (session.name||'Faculty') + '</div>';
+  h += '<div class="tab-group" style="margin-bottom:1.5rem">';
+  h += '<button class="tab-btn' + (activeTab==='hours'?' active':'') + '" data-frtab="hours">Hours</button>';
+  h += '<button class="tab-btn' + (activeTab==='pubs'?' active':'') + '" data-frtab="pubs">Publications</button>';
+  h += '<button class="tab-btn' + (activeTab==='grants'?' active':'') + '" data-frtab="grants">Grants</button>';
+  h += '</div><div id="frContent"></div></div>';
+  sh('pageContainer', h);
+  document.querySelectorAll('[data-frtab]').forEach(function(btn) {
+    btn.addEventListener('click', function() { buildFacultyReporting(this.getAttribute('data-frtab')); });
   });
-  if(activeTab==='hours')buildFRHours();
-  else if(activeTab==='pubs')buildFRPubs();
+  if (activeTab==='hours') buildFRHours();
+  else if (activeTab==='pubs') buildFRPubs();
   else buildFRGrants();
 }
 
-function deptOpts(sel){var o='<option value="">Select...</option>';DEPTS.forEach(function(d){o+='<option'+(d===sel?' selected':'')+'>'+d+'</option>';});return o;}
-function qOpts(){var o='';['Q1','Q2','Q3','Q4'].forEach(function(q){o+='<option'+(q===curQ()?' selected':'')+'>'+ q+'</option>';});return o;}
-
-function buildFRHours(){
-  var mine=facultyHours.filter(function(h){return h.facultyName===session.name;}).slice(-8).reverse();
-  var h='<div class="form-grid">';
-  h+='<div class="form-group"><label>Investigator *</label><input id="fr_inv" placeholder="First Last"></div>';
-  h+='<div class="form-group"><label>Department *</label><select id="fr_dept">'+deptOpts()+'</select></div>';
-  h+='<div class="form-group"><label>Quarter</label><select id="fr_q">'+qOpts()+'</select></div>';
-  h+='<div class="form-group"><label>Year</label><input id="fr_yr" type="number" value="'+curYr()+'"></div>';
-  h+='<div class="form-group"><label>Period of performance &mdash; start</label><input id="fr_pstart" type="date"></div>';
-  h+='<div class="form-group"><label>Period of performance &mdash; end</label><input id="fr_pend" type="date"></div>';
-  h+='<div class="form-group"><label>Funding source</label><input id="fr_fsrc" placeholder="e.g. CTSI Pilot Award, NIH R01..."></div>';
-  h+='<div class="form-group"><label>CTSI?</label><select id="fr_ctsi"><option value="yes">Yes</option><option value="no">No</option></select></div>';
-  h+='</div><div style="margin:1rem 0">';
-  h+='<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Hours by service category</div>';
-  h+='<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666"><div>Category</div><div>Hours</div></div>';
-  FAC_SVCS.forEach(function(svc,i){
-    h+='<div style="display:grid;grid-template-columns:2fr 1fr;padding:8px;border-bottom:1px solid #f0f0f0;align-items:center"><div style="font-size:13px">'+svc+'</div>';
-    h+='<div><input type="number" id="fh_'+i+'" min="0" step="0.5" placeholder="0" class="frHrsInput" data-fi="'+i+'" style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px"></div></div>';
-  });
-  h+='<div style="text-align:right;padding:8px;font-size:12px;color:#666">Total: <strong id="frTotal" style="color:#185FA5">0.0 hrs</strong></div></div>';
-  h+='<div class="form-group" style="margin-bottom:1rem"><label>Description of services</label><textarea id="fr_desc"></textarea></div>';
-  h+='<div class="actions"><button class="btn btn-primary" id="submitFRHours">Submit hours entry</button></div>';
-  if(mine.length){
-    h+='<div style="margin-top:2rem"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Recent entries</div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Period</th><th>Investigator</th><th>Dept</th><th>Total hrs</th><th>CTSI</th></tr></thead><tbody>';
-    mine.forEach(function(hh){h+='<tr><td style="font-size:12px">'+hh.quarter+' '+hh.year+'</td><td style="font-weight:500">'+hh.investigator+'</td><td style="font-size:12px;color:#888">'+hh.department+'</td><td style="font-weight:500">'+fmtHrs(hh.totalHours)+'</td><td>'+(hh.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;')+'</td></tr>';});
-    h+='</tbody></table></div></div>';
-  }
-  sh('frContent',h);
-  document.querySelectorAll('.frHrsInput').forEach(function(inp){inp.addEventListener('input',function(){var t=0;FAC_SVCS.forEach(function(_,i){t+=parseFloat((el('fh_'+i)||{}).value)||0;});var te=el('frTotal');if(te)te.textContent=t.toFixed(1)+' hrs';});});
-  el('submitFRHours').addEventListener('click',function(){
-    var inv=gv('fr_inv').trim(),dept=gv('fr_dept');
-    if(!inv||!dept){alert('Investigator and department required.');return;}
-    var svcs={};FAC_SVCS.forEach(function(svc,i){svcs[svc]=parseFloat((el('fh_'+i)||{}).value)||0;});
-    var total=Object.keys(svcs).reduce(function(a,k){return a+svcs[k];},0);
-    var rec={id:String(nextIds.fh++),facultyName:session.name,investigator:inv,department:dept,
-      period:gv('fr_q')+' '+gv('fr_yr'),quarter:gv('fr_q'),year:parseInt(gv('fr_yr')),
-      dataAnalysis:svcs['Data Analysis']||0,grantApplication:svcs['Grant Application']||0,
-      administration:svcs['Administration']||0,studyDesign:svcs['Study Design']||0,
-      dataManagement:svcs['Data Management']||0,totalHours:total,
-      serviceDescription:gv('fr_desc'),ctsi:gv('fr_ctsi'),
-      fundingSource:gv('fr_fsrc'),perfStart:gv('fr_pstart'),perfEnd:gv('fr_pend'),
-      submittedDate:new Date().toISOString().split('T')[0]};
-    facultyHours.push(rec);
-    saveRecord('add',rec,'facultyHours');
-    alert('Hours entry submitted.');
-    buildFRHours();
-  });
+function deptOpts(sel) {
+  var o = '<option value="">Select...</option>';
+  DEPTS.forEach(function(d) { o += '<option' + (d===sel?' selected':'') + '>' + d + '</option>'; });
+  return o;
+}
+function qOpts(sel) {
+  var o = '';
+  ['Q1','Q2','Q3','Q4'].forEach(function(q) { o += '<option' + (q===(sel||curQ())?' selected':'') + '>' + q + '</option>'; });
+  return o;
 }
 
-function buildFRPubs(){
-  var mine=facultyPubs.filter(function(p){return p.facultyName===session.name;}).slice(-5).reverse();
-  var statusOpts=''; PUB_STATUSES.forEach(function(s){statusOpts+='<option>'+s+'</option>';});
-  var h='<div class="form-grid">';
-  h+='<div class="form-group"><label>Investigator *</label><input id="fp_inv" placeholder="First Last"></div>';
-  h+='<div class="form-group"><label>Department *</label><select id="fp_dept">'+deptOpts()+'</select></div>';
-  h+='<div class="form-group full"><label>Citation *</label><textarea id="fp_cit" placeholder="Full citation..."></textarea></div>';
-  h+='<div class="form-group"><label>Status *</label><select id="fp_status"><option value="">Select...</option>'+statusOpts+'</select></div>';
-  h+='<div class="form-group"><label>New or Updated</label><select id="fp_nu"><option value="New">New</option><option value="Updated Status">Updated Status</option></select></div>';
-  h+='<div class="form-group"><label>Quarter</label><select id="fp_q">'+qOpts()+'</select></div>';
-  h+='<div class="form-group"><label>Year</label><input id="fp_yr" type="number" value="'+curYr()+'"></div>';
-  h+='<div class="form-group"><label>CTSI?</label><select id="fp_ctsi"><option value="yes">Yes</option><option value="no">No</option></select></div>';
-  h+='<div class="form-group"><label>Funding source</label><input id="fp_fsrc"></div>';
-  h+='<div class="form-group"><label>Period of performance &mdash; start</label><input id="fp_pstart" type="date"></div>';
-  h+='<div class="form-group"><label>Period of performance &mdash; end</label><input id="fp_pend" type="date"></div>';
-  h+='<div class="form-group full"><label>Notes</label><textarea id="fp_notes"></textarea></div></div>';
-  h+='<div class="actions"><button class="btn btn-primary" id="submitFRPub">Submit publication</button></div>';
-  if(mine.length){
-    h+='<div style="margin-top:2rem"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Recent submissions</div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Investigator</th><th>Status</th><th>Period</th><th>CTSI</th><th>Citation (excerpt)</th></tr></thead><tbody>';
-    mine.forEach(function(p){h+='<tr><td style="font-weight:500">'+p.investigator+'</td><td><span class="badge badge-pending">'+p.status+'</span></td><td style="font-size:12px">'+p.quarter+' '+p.year+'</td><td>'+(p.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;')+'</td><td style="font-size:11px;color:#666">'+(p.citation||'').substring(0,80)+'&hellip;</td></tr>';});
-    h+='</tbody></table></div></div>';
-  }
-  sh('frContent',h);
-  el('submitFRPub').addEventListener('click',function(){
-    var inv=gv('fp_inv').trim(),dept=gv('fp_dept'),cit=gv('fp_cit').trim(),status=gv('fp_status');
-    if(!inv||!dept||!cit||!status){alert('Investigator, department, citation and status required.');return;}
-    var rec={id:String(nextIds.fp++),facultyName:session.name,investigator:inv,department:dept,citation:cit,status:status,newUpdated:gv('fp_nu'),period:gv('fp_q')+' '+gv('fp_yr'),quarter:gv('fp_q'),year:parseInt(gv('fp_yr')),ctsi:gv('fp_ctsi'),fundingSource:gv('fp_fsrc'),perfStart:gv('fp_pstart'),perfEnd:gv('fp_pend'),notes:gv('fp_notes'),submittedDate:new Date().toISOString().split('T')[0]};
-    facultyPubs.push(rec); saveRecord('add',rec,'facultyPublications'); alert('Publication submitted.'); buildFRPubs();
-  });
-}
-
-function buildFRGrants(){
-  var mine=facultyGrants.filter(function(g){return g.facultyName===session.name;}).slice(-5).reverse();
-  var gtOpts=''; GRANT_TYPES.forEach(function(t){gtOpts+='<option>'+t+'</option>';});
-  var gsOpts=''; GRANT_STATUSES.forEach(function(s){gsOpts+='<option>'+s+'</option>';});
-  var h='<div class="form-grid">';
-  h+='<div class="form-group"><label>Investigator *</label><input id="fg_inv" placeholder="First Last"></div>';
-  h+='<div class="form-group"><label>Department *</label><select id="fg_dept">'+deptOpts()+'</select></div>';
-  h+='<div class="form-group full"><label>Grant title</label><input id="fg_title" placeholder="Full grant title"></div>';
-  h+='<div class="form-group"><label>Grant type *</label><select id="fg_gtype"><option value="">Select...</option>'+gtOpts+'</select></div>';
-  h+='<div class="form-group"><label>Status *</label><select id="fg_status"><option value="">Select...</option>'+gsOpts+'</select></div>';
-  h+='<div class="form-group"><label>New or Updated</label><select id="fg_nu"><option value="New">New</option><option value="Updated Status">Updated Status</option></select></div>';
-  h+='<div class="form-group"><label>Quarter</label><select id="fg_q">'+qOpts()+'</select></div>';
-  h+='<div class="form-group"><label>Year</label><input id="fg_yr" type="number" value="'+curYr()+'"></div>';
-  h+='<div class="form-group"><label>CTSI?</label><select id="fg_ctsi"><option value="yes">Yes</option><option value="no">No</option></select></div>';
-  h+='<div class="form-group"><label>Funding source</label><input id="fg_fsrc"></div>';
-  h+='<div class="form-group"><label>Period of performance &mdash; start</label><input id="fg_pstart" type="date"></div>';
-  h+='<div class="form-group"><label>Period of performance &mdash; end</label><input id="fg_pend" type="date"></div>';
-  h+='<div class="form-group full"><label>Notes</label><textarea id="fg_notes"></textarea></div></div>';
-  h+='<div class="actions"><button class="btn btn-primary" id="submitFRGrant">Submit grant</button></div>';
-  if(mine.length){
-    h+='<div style="margin-top:2rem"><div style="font-size:13px;font-weight:600;margin-bottom:8px">Recent submissions</div>';
-    h+='<div style="overflow-x:auto"><table><thead><tr><th>Investigator</th><th>Type</th><th>Status</th><th>Period</th><th>CTSI</th></tr></thead><tbody>';
-    mine.forEach(function(g){h+='<tr><td style="font-weight:500">'+g.investigator+'</td><td style="font-size:12px">'+g.grantType+'</td><td><span class="badge '+(g.status==='Funded'?'badge-approved':'badge-pending')+'">'+g.status+'</span></td><td style="font-size:12px">'+g.quarter+' '+g.year+'</td><td>'+(g.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;')+'</td></tr>';});
-    h+='</tbody></table></div></div>';
-  }
-  sh('frContent',h);
-  el('submitFRGrant').addEventListener('click',function(){
-    var inv=gv('fg_inv').trim(),dept=gv('fg_dept'),gtype=gv('fg_gtype'),status=gv('fg_status');
-    if(!inv||!dept||!gtype||!status){alert('Investigator, department, grant type and status required.');return;}
-    var rec={id:String(nextIds.fg++),facultyName:session.name,investigator:inv,department:dept,grantTitle:gv('fg_title'),grantType:gtype,status:status,newUpdated:gv('fg_nu'),period:gv('fg_q')+' '+gv('fg_yr'),quarter:gv('fg_q'),year:parseInt(gv('fg_yr')),ctsi:gv('fg_ctsi'),fundingSource:gv('fg_fsrc'),perfStart:gv('fg_pstart'),perfEnd:gv('fg_pend'),notes:gv('fg_notes'),submittedDate:new Date().toISOString().split('T')[0]};
-    facultyGrants.push(rec); saveRecord('add',rec,'facultyGrants'); alert('Grant submitted.'); buildFRGrants();
-  });
-}
-
-// ── MY PROFILE ─────────────────────────────────────────────────────────────
-function buildMyProfile(){
-  var name=session.name;
-  var profile=getProfile(name);
-  var tax=getAllSkills();
-  var skillMap={};(profile.skills||[]).forEach(function(s){skillMap[s.name]={level:s.level,category:s.category};});
-  var pendingMine=skillRequests.filter(function(r){return r.requestedBy===name&&r.status==='pending';});
-  var h='<div class="card">';
-  h+='<div style="display:flex;align-items:center;gap:14px;margin-bottom:1.5rem;flex-wrap:wrap">';
-  h+='<div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
-  h+='<div><div style="font-size:17px;font-weight:600">'+name+'</div><div style="margin-top:4px">'+roleBadgeHtml()+'</div></div></div>';
-  if(pendingMine.length)h+='<div class="alert alert-info" style="margin-bottom:1rem">You have <strong>'+pendingMine.length+'</strong> pending skill request'+(pendingMine.length>1?'s':'')+': '+pendingMine.map(function(r){return'<em>'+r.skillName+'</em>';}).join(', ')+' &mdash; awaiting admin approval</div>';
-  h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px">Current skills</div>';
-  h+='<div id="profileSkillsPreview" style="margin-bottom:1.5rem;min-height:32px">'+(profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>')+'</div>';
-  h+='<div style="border-top:1px solid #f0f0f0;padding-top:1rem;font-size:13px;font-weight:600;margin-bottom:1rem">Edit skills &amp; competencies</div>';
-  Object.keys(tax).forEach(function(cat){
-    h+='<div style="margin-bottom:1.25rem"><div style="font-size:11px;font-weight:700;color:#777;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">'+cat+'</div>';
-    h+='<div style="display:flex;flex-wrap:wrap;gap:5px">';
-    tax[cat].forEach(function(skill){
-      var cur=skillMap[skill];
-      var idSafe='sk_'+cat.replace(/\W/g,'_')+'_'+skill.replace(/\W/g,'_');
-      h+='<div style="display:inline-flex;align-items:center;border:1px solid '+(cur?'#185FA5':'#e5e5e5')+';border-radius:8px;overflow:hidden;background:'+(cur?'#E6F1FB':'#fafafa')+'">';
-      h+='<label style="display:flex;align-items:center;gap:5px;padding:5px 9px;cursor:pointer;font-size:12px;font-weight:'+(cur?'600':'400')+';color:'+(cur?'#185FA5':'#666')+'">';
-      h+='<input type="checkbox" data-skill-cat="'+cat+'" data-skill-name="'+skill+'" id="'+idSafe+'" '+(cur?'checked':'')+' style="accent-color:#185FA5;width:13px;height:13px">';
-      h+=(skill==='WOC (VA Authorization)'?'&#127973; ':'')+skill+'</label>';
-      if(cur){
-        h+='<select data-skill-level-cat="'+cat+'" data-skill-level-name="'+skill+'" style="font-size:11px;border:none;border-left:1px solid #b5d4f4;background:#E6F1FB;color:#185FA5;padding:5px 6px;cursor:pointer;font-weight:500">';
-        PROF_LEVELS.forEach(function(l){h+='<option'+(( cur.level||'Proficient')===l?' selected':'')+'>'+l+'</option>';});
-        h+='</select>';
-      }
-      h+='</div>';
+// ── HOURS TAB ──────────────────────────────────────────────────────────────
+function buildFRHours() {
+  var mine = facultyHours.filter(function(h) { return h.facultyName === session.name; });
+  var h = '<div style="margin-bottom:1.5rem">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:1rem">Add new hours entry</div>';
+  h += buildFRHoursForm(null);
+  h += '</div>';
+  if (mine.length) {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1.5rem">';
+    h += '<div style="font-size:13px;font-weight:600;margin-bottom:1rem">My entries (' + mine.length + ')</div>';
+    h += '<div style="overflow-x:auto"><table><thead><tr>';
+    h += '<th>Period</th><th>Investigator</th><th>Dept</th><th>Total hrs</th><th>CTSI</th><th>Funding source</th><th>POP</th><th>Actions</th>';
+    h += '</tr></thead><tbody>';
+    mine.forEach(function(r) {
+      h += '<tr>';
+      h += '<td style="font-size:12px;white-space:nowrap">' + (r.quarter||'') + ' ' + (r.year||'') + '</td>';
+      h += '<td style="font-weight:500;font-size:12px">' + (r.investigator||'') + '</td>';
+      h += '<td style="font-size:12px;color:#888">' + (r.department||'') + '</td>';
+      h += '<td style="font-weight:600;text-align:center">' + fmtHrs(r.totalHours) + '</td>';
+      h += '<td style="text-align:center">' + (r.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;') + '</td>';
+      h += '<td style="font-size:12px;color:#666">' + (r.fundingSource||'&mdash;') + '</td>';
+      h += '<td style="font-size:12px">' + (r.perfStart?fmtDate(r.perfStart):'&mdash;') + (r.perfEnd?' &rarr; '+fmtDate(r.perfEnd):'') + '</td>';
+      h += '<td><button class="btn btn-sm" data-edit-frhours="' + r.id + '">Edit</button></td>';
+      h += '</tr>';
     });
-    h+='<button class="btn btn-sm" style="font-size:11px;border-style:dashed;color:#999;padding:5px 10px" data-req-cat="'+cat+'">+ Other</button>';
-    h+='</div></div>';
-  });
-  h+='<div class="actions"><button class="btn btn-primary" id="saveProfileBtn">Save profile</button></div>';
-  if(profile.updatedDate)h+='<div style="font-size:11px;color:#ccc;margin-top:8px;text-align:right">Last updated '+fmtDate(profile.updatedDate)+'</div>';
-  h+='</div>';
-  sh('pageContainer',h);
-  // Skill checkboxes
-  document.querySelectorAll('[data-skill-cat]').forEach(function(cb){
-    cb.addEventListener('change',function(){
-      var cat=this.getAttribute('data-skill-cat'), skill=this.getAttribute('data-skill-name');
-      var p=profilesData[name]||{skills:[],updatedDate:''};
-      if(!p.skills)p.skills=[];
-      if(this.checked){if(!p.skills.some(function(s){return s.name===skill;}))p.skills.push({name:skill,category:cat,level:'Proficient'});}
-      else{p.skills=p.skills.filter(function(s){return s.name!==skill;});}
-      profilesData[name]=p;
-      sh('profileSkillsPreview',profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>');
-      buildMyProfile();
-    });
-  });
-  // Level dropdowns
-  document.querySelectorAll('[data-skill-level-cat]').forEach(function(sel){
-    sel.addEventListener('change',function(){
-      var cat=this.getAttribute('data-skill-level-cat'), skill=this.getAttribute('data-skill-level-name');
-      var p=profilesData[name]||{skills:[]};
-      var entry=p.skills.filter(function(s){return s.name===skill;})[0];
-      if(entry)entry.level=this.value;
-      profilesData[name]=p;
-      sh('profileSkillsPreview',profileSkillsHtml(name)||'<span style="font-size:13px;color:#bbb">No skills added yet</span>');
-    });
-  });
-  // Other (request new skill)
-  document.querySelectorAll('[data-req-cat]').forEach(function(btn){
-    btn.addEventListener('click',function(){requestNewSkill(this.getAttribute('data-req-cat'));});
-  });
-  el('saveProfileBtn').addEventListener('click',saveMyProfile);
-}
-
-function saveMyProfile(){
-  var p=profilesData[session.name]||{skills:[]};
-  p.updatedDate=new Date().toISOString().split('T')[0];
-  profilesData[session.name]=p;
-  var rec={staffName:session.name,skills:JSON.stringify(p.skills||[]),updatedDate:p.updatedDate};
-  saveRecord('upsert',rec,'profiles').then(function(){
-    openModal('<div class="modal-title">Profile saved</div><div class="alert alert-ok">Your skills profile has been updated.</div><div class="actions"><button class="btn btn-primary" id="profileOkBtn">OK</button></div>');
-    el('profileOkBtn').addEventListener('click',closeModal);
-  });
-}
-
-function requestNewSkill(category){
-  openModal('<div class="modal-title">Request new skill &mdash; '+category+'</div>' +
-    '<p style="font-size:13px;color:#666;margin-bottom:1rem">Suggest a skill to add to the <strong>'+category+'</strong> list. Admin will review before it appears for everyone.</p>' +
-    '<div class="form-group" style="margin-bottom:1rem"><label>Skill name *</label><input id="newSkillName" placeholder="e.g. Network Meta-Analysis"></div>' +
-    '<div class="actions"><button class="btn" id="reqCancelBtn">Cancel</button><button class="btn btn-primary" id="reqSubmitBtn">Submit for review</button></div>');
-  el('reqCancelBtn').addEventListener('click',closeModal);
-  el('reqSubmitBtn').addEventListener('click',function(){
-    var skillName=gv('newSkillName').trim();
-    if(!skillName){alert('Please enter a skill name.');return;}
-    var tax=getAllSkills();
-    if((tax[category]||[]).some(function(s){return s.toLowerCase()===skillName.toLowerCase();})){alert('This skill already exists.');return;}
-    if(skillRequests.some(function(r){return r.skillName.toLowerCase()===skillName.toLowerCase()&&r.status==='pending';})){alert('A request for this skill is already pending.');closeModal();return;}
-    var rec={id:String(nextIds.sr++),requestedBy:session.name,category:category,skillName:skillName,status:'pending',requestedDate:new Date().toISOString().split('T')[0],reviewedBy:'',reviewedDate:''};
-    skillRequests.push(rec);
-    saveRecord('add',rec,'skillRequests');
-    closeModal();
-    openModal('<div class="modal-title">Request submitted</div><div class="alert alert-ok">Your request to add <strong>'+skillName+'</strong> to the '+category+' list has been sent for review.</div><div class="actions"><button class="btn btn-primary" id="reqOkBtn">OK</button></div>');
-    el('reqOkBtn').addEventListener('click',closeModal);
-  });
-}
-
-// ── STAFF SKILLS DIRECTORY ─────────────────────────────────────────────────
-function buildStaffSkills(){
-  var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']);
-  var tax=getAllSkills();
-  var allSkillsList=Object.keys(tax).reduce(function(a,k){return a.concat(tax[k]);}, []);
-  var pendingReqs=skillRequests.filter(function(r){return r.status==='pending';});
-  var h='<div class="card"><div class="section-hdr" style="margin-bottom:1rem">';
-  h+='<span class="card-title" style="margin:0">Staff skills &amp; competencies</span>';
-  if(canApprove()&&pendingReqs.length)h+='<span class="badge badge-appr-pending">'+pendingReqs.length+' skill request'+(pendingReqs.length>1?'s':'')+' pending</span>';
-  h+='</div>';
-  h+='<div class="filter-row"><input id="ssName" type="text" placeholder="Search name..." style="width:150px"><select id="ssCat"><option value="">All categories</option>';
-  Object.keys(tax).forEach(function(c){h+='<option>'+c+'</option>';});
-  h+='</select><select id="ssSkill"><option value="">Filter by skill...</option>';
-  allSkillsList.forEach(function(s){h+='<option>'+s+'</option>';});
-  h+='</select><select id="ssLevel"><option value="">Any level</option>';
-  PROF_LEVELS.forEach(function(l){h+='<option>'+l+'</option>';});
-  h+='</select></div>';
-  if(canApprove()&&pendingReqs.length){
-    h+='<div style="border:1px solid #e5e5e5;border-left:4px solid #EF9F27;border-radius:8px;padding:14px;margin-bottom:1.5rem;background:#FFFDF7">';
-    h+='<div style="font-size:13px;font-weight:600;margin-bottom:10px">Pending skill additions ('+pendingReqs.length+')</div>';
-    pendingReqs.forEach(function(r){
-      h+='<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f5f5f5;flex-wrap:wrap;gap:6px">';
-      h+='<div><strong style="font-size:13px">'+r.skillName+'</strong><span style="font-size:12px;color:#888;margin-left:6px">&mdash; '+r.category+'</span><span style="font-size:12px;color:#666;margin-left:6px">by '+r.requestedBy+'</span></div>';
-      h+='<div style="display:flex;gap:6px"><button class="btn btn-sm btn-approve" data-approve-skill="'+r.id+'">&check; Approve</button><button class="btn btn-sm btn-reject" data-reject-skill="'+r.id+'">&times; Reject</button></div></div>';
-    });
-    h+='</div>';
+    h += '</tbody></table></div></div>';
+  } else {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;color:#999;font-size:13px">No hours entries submitted yet.</div>';
   }
-  h+='<div id="ssGrid">'+buildSkillGrid(allStaff)+'</div></div>';
-  sh('pageContainer',h);
-  ['ssName','ssCat','ssSkill','ssLevel'].forEach(function(id){
-    var e=el(id); if(e)e.addEventListener('input',refreshSkillGrid); if(e)e.addEventListener('change',refreshSkillGrid);
+  sh('frContent', h);
+  attachFRHoursHandlers();
+  document.querySelectorAll('[data-edit-frhours]').forEach(function(btn) {
+    btn.addEventListener('click', function() { openFRHoursEdit(this.getAttribute('data-edit-frhours')); });
   });
-  document.querySelectorAll('[data-approve-skill]').forEach(function(btn){btn.addEventListener('click',function(){approveSkillRequest(this.getAttribute('data-approve-skill'));});});
-  document.querySelectorAll('[data-reject-skill]').forEach(function(btn){btn.addEventListener('click',function(){rejectSkillRequest(this.getAttribute('data-reject-skill'));});});
 }
 
-function refreshSkillGrid(){
-  var search=(gv('ssName')||'').toLowerCase();
-  var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']).filter(function(n){return !search||n.toLowerCase().indexOf(search)>-1;});
-  sh('ssGrid',buildSkillGrid(allStaff));
-}
-
-function buildSkillGrid(staffList){
-  var skill=gv('ssSkill'),level=gv('ssLevel'),cat=gv('ssCat');
-  var tax=getAllSkills(), cats=Object.keys(tax);
-  var filtered=staffList.filter(function(name){
-    var skills=getProfile(name).skills||[];
-    if(skill&&!skills.some(function(s){return s.name===skill&&(!level||s.level===level);}))return false;
-    if(level&&!skill&&!skills.some(function(s){return s.level===level;}))return false;
-    if(cat&&!skills.some(function(s){return s.category===cat;}))return false;
-    return true;
+function buildFRHoursForm(rec) {
+  // rec = null for new entry, or existing record for edit
+  var prefix = rec ? 'efh_' : 'fh_new_';
+  var h = '<div class="form-grid">';
+  h += '<div class="form-group"><label>Investigator *</label><input id="' + prefix + 'inv" placeholder="First Last" value="' + (rec?rec.investigator||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Department *</label><select id="' + prefix + 'dept">' + deptOpts(rec?rec.department:'') + '</select></div>';
+  h += '<div class="form-group"><label>Quarter</label><select id="' + prefix + 'q">' + qOpts(rec?rec.quarter:'') + '</select></div>';
+  h += '<div class="form-group"><label>Year</label><input id="' + prefix + 'yr" type="number" value="' + (rec?rec.year:curYr()) + '"></div>';
+  h += '<div class="form-group"><label>Period of performance &mdash; start</label><input id="' + prefix + 'pstart" type="date" value="' + (rec?rec.perfStart||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Period of performance &mdash; end</label><input id="' + prefix + 'pend" type="date" value="' + (rec?rec.perfEnd||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Funding source</label><input id="' + prefix + 'fsrc" value="' + (rec?rec.fundingSource||'':'') + '" placeholder="e.g. CTSI Pilot Award, NIH R01..."></div>';
+  h += '<div class="form-group"><label>CTSI?</label><select id="' + prefix + 'ctsi"><option value="yes"' + (rec&&rec.ctsi==='yes'?' selected':'') + '>Yes</option><option value="no"' + (rec&&rec.ctsi==='no'?' selected':'') + '>No</option></select></div>';
+  h += '</div>';
+  h += '<div style="margin:1rem 0"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Hours by service category</div>';
+  h += '<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666"><div>Category</div><div>Hours</div></div>';
+  var svcKeys = ['dataAnalysis','grantApplication','administration','studyDesign','dataManagement'];
+  FAC_SVCS.forEach(function(svc, i) {
+    var val = rec ? (rec[svcKeys[i]]||0) : 0;
+    h += '<div style="display:grid;grid-template-columns:2fr 1fr;padding:8px;border-bottom:1px solid #f0f0f0;align-items:center">';
+    h += '<div style="font-size:13px">' + svc + '</div>';
+    h += '<div><input type="number" id="' + prefix + i + '" min="0" step="0.5" placeholder="0" value="' + (val||'') + '" class="frHrsInput" data-fi="' + i + '" style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px"></div></div>';
   });
-  if(!filtered.length)return'<div class="empty">No staff match current filters.</div>';
-  var h='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px">';
-  filtered.forEach(function(name){
-    var p=getProfile(name), skills=p.skills||[];
-    var hasWOC=skills.some(function(s){return s.name==='WOC (VA Authorization)';});
-    h+='<div style="border:1px solid #e5e5e5;border-radius:10px;padding:14px;background:#fff;'+(hasWOC?'border-top:3px solid #EF9F27':'')+'">';
-    h+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">';
-    h+='<div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
-    h+='<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+name+'</div><div style="margin-top:2px">'+userBadge(name)+'</div></div>';
-    if(hasWOC)h+='<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#FAEEDA;color:#854F0B;font-weight:600;flex-shrink:0">&#127973; WOC</span>';
-    h+='</div>';
-    if(skills.length){cats.forEach(function(c){var cs=skills.filter(function(s){return s.category===c;});if(!cs.length)return;h+='<div style="margin-bottom:6px"><div style="font-size:10px;font-weight:700;color:#bbb;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">'+c+'</div><div>';cs.forEach(function(s){h+=skillBadge(s);});h+='</div></div>';});}
-    else h+='<div style="font-size:12px;color:#ccc;font-style:italic">No skills listed</div>';
-    if(p.updatedDate)h+='<div style="font-size:10px;color:#ddd;margin-top:6px">Updated '+fmtDate(p.updatedDate)+'</div>';
-    h+='</div>';
-  });
-  h+='</div>';
+  h += '<div style="text-align:right;padding:8px;font-size:12px;color:#666">Total: <strong id="' + prefix + 'total" style="color:#185FA5">';
+  var initTotal = rec ? fmtHrs(rec.totalHours) : '0.0';
+  h += initTotal + ' hrs</strong></div></div>';
+  h += '<div class="form-group" style="margin-bottom:1rem"><label>Description of services</label>';
+  h += '<textarea id="' + prefix + 'desc">' + (rec?rec.serviceDescription||'':'') + '</textarea></div>';
   return h;
 }
 
-function approveSkillRequest(id){
-  var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
-  req.status='approved'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
-  saveRecord('update',req,'skillRequests');
-  buildStaffSkills();
+function attachFRHoursHandlers() {
+  document.querySelectorAll('.frHrsInput').forEach(function(inp) {
+    inp.addEventListener('input', function() {
+      var prefix = this.id.replace(/\d+$/, '').replace(/_[^_]+$/, '_');
+      // Find the total element
+      var totalId = this.id.replace(/\d+$/, 'total');
+      // Recalc
+      var t = 0;
+      FAC_SVCS.forEach(function(_, i) {
+        var inp2 = el(this.id.replace(/\d+$/, String(i)));
+        if (inp2) t += parseFloat(inp2.value)||0;
+      }.bind(this));
+      var te = el(totalId);
+      if (te) te.textContent = t.toFixed(1) + ' hrs';
+    });
+  });
+  var submitBtn = el('frSubmitHoursBtn');
+  if (submitBtn) submitBtn.addEventListener('click', function() { submitFRHoursNew(); });
 }
-function rejectSkillRequest(id){
-  var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
-  req.status='rejected'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
-  saveRecord('update',req,'skillRequests');
-  buildStaffSkills();
+
+function submitFRHoursNew() {
+  var inv = gv('fh_new_inv').trim(), dept = gv('fh_new_dept');
+  if (!inv||!dept) { alert('Investigator and department required.'); return; }
+  var svcKeys = ['dataAnalysis','grantApplication','administration','studyDesign','dataManagement'];
+  var svcs = {}; FAC_SVCS.forEach(function(svc,i) { svcs[svcKeys[i]] = parseFloat((el('fh_new_'+i)||{}).value)||0; });
+  var total = Object.keys(svcs).reduce(function(a,k) { return a+svcs[k]; }, 0);
+  var rec = {id:String(nextIds.fh++), facultyName:session.name, investigator:inv, department:dept,
+    period:gv('fh_new_q')+' '+gv('fh_new_yr'), quarter:gv('fh_new_q'), year:parseInt(gv('fh_new_yr')),
+    dataAnalysis:svcs.dataAnalysis, grantApplication:svcs.grantApplication,
+    administration:svcs.administration, studyDesign:svcs.studyDesign, dataManagement:svcs.dataManagement,
+    totalHours:total, serviceDescription:gv('fh_new_desc'), ctsi:gv('fh_new_ctsi'),
+    fundingSource:gv('fh_new_fsrc'), perfStart:gv('fh_new_pstart'), perfEnd:gv('fh_new_pend'),
+    submittedDate:new Date().toISOString().split('T')[0]};
+  facultyHours.push(rec);
+  saveRecord('add', rec, 'facultyHours');
+  buildFRHours();
 }
+
+function openFRHoursEdit(id) {
+  var rec = facultyHours.filter(function(r) { return r.id === id; })[0];
+  if (!rec) return;
+  openModal('<div class="modal-title">Edit hours entry &mdash; ' + rec.investigator + ' (' + rec.quarter + ' ' + rec.year + ')</div>' +
+    buildFRHoursForm(rec) +
+    '<div class="actions"><button class="btn" id="frHrsEditCancel">Cancel</button>' +
+    '<button class="btn btn-primary" id="frHrsEditSave">Save changes</button></div>');
+  attachFRHoursHandlers();
+  el('frHrsEditCancel').addEventListener('click', closeModal);
+  el('frHrsEditSave').addEventListener('click', function() { saveFRHoursEdit(id); });
+}
+
+function saveFRHoursEdit(id) {
+  var rec = facultyHours.filter(function(r) { return r.id === id; })[0];
+  if (!rec) return;
+  var svcKeys = ['dataAnalysis','grantApplication','administration','studyDesign','dataManagement'];
+  FAC_SVCS.forEach(function(svc, i) { rec[svcKeys[i]] = parseFloat((el('efh_'+i)||{}).value)||0; });
+  rec.totalHours = svcKeys.reduce(function(a,k) { return a+(rec[k]||0); }, 0);
+  rec.investigator = gv('efh_inv').trim() || rec.investigator;
+  rec.department = gv('efh_dept') || rec.department;
+  rec.quarter = gv('efh_q') || rec.quarter;
+  rec.year = parseInt(gv('efh_yr')) || rec.year;
+  rec.perfStart = gv('efh_pstart'); rec.perfEnd = gv('efh_pend');
+  rec.fundingSource = gv('efh_fsrc'); rec.ctsi = gv('efh_ctsi');
+  rec.serviceDescription = gv('efh_desc');
+  rec.period = rec.quarter + ' ' + rec.year;
+  saveRecord('update', rec, 'facultyHours');
+  closeModal();
+  buildFRHours();
+}
+
+// ── PUBLICATIONS TAB ───────────────────────────────────────────────────────
+function buildFRPubs() {
+  var mine = facultyPubs.filter(function(p) { return p.facultyName === session.name; });
+  var h = '<div style="margin-bottom:1.5rem">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:1rem">Add new publication</div>';
+  h += buildFRPubsForm(null);
+  h += '</div>';
+  if (mine.length) {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1.5rem">';
+    h += '<div style="font-size:13px;font-weight:600;margin-bottom:1rem">My publications (' + mine.length + ')</div>';
+    h += '<div style="overflow-x:auto"><table><thead><tr>';
+    h += '<th>Investigator</th><th>Period</th><th>Status</th><th>New/Updated</th><th>CTSI</th><th>Funding source</th><th>POP</th><th>Citation</th><th>Actions</th>';
+    h += '</tr></thead><tbody>';
+    mine.forEach(function(r) {
+      h += '<tr>';
+      h += '<td style="font-weight:500;font-size:12px">' + (r.investigator||'') + '</td>';
+      h += '<td style="font-size:12px;white-space:nowrap">' + (r.quarter||'') + ' ' + (r.year||'') + '</td>';
+      h += '<td><span class="badge badge-pending">' + (r.status||'') + '</span></td>';
+      h += '<td style="font-size:12px">' + (r.newUpdated||'') + '</td>';
+      h += '<td style="text-align:center">' + (r.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;') + '</td>';
+      h += '<td style="font-size:12px;color:#666">' + (r.fundingSource||'&mdash;') + '</td>';
+      h += '<td style="font-size:12px">' + (r.perfStart?fmtDate(r.perfStart):'&mdash;') + (r.perfEnd?' &rarr; '+fmtDate(r.perfEnd):'') + '</td>';
+      h += '<td style="font-size:11px;color:#666;max-width:200px">' + (r.citation||'').substring(0,80) + (r.citation&&r.citation.length>80?'&hellip;':'') + '</td>';
+      h += '<td><button class="btn btn-sm" data-edit-frpub="' + r.id + '">Edit</button></td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div></div>';
+  } else {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;color:#999;font-size:13px">No publications submitted yet.</div>';
+  }
+  sh('frContent', h);
+  var submitBtn = el('frSubmitPubBtn');
+  if (submitBtn) submitBtn.addEventListener('click', submitFRPubNew);
+  document.querySelectorAll('[data-edit-frpub]').forEach(function(btn) {
+    btn.addEventListener('click', function() { openFRPubEdit(this.getAttribute('data-edit-frpub')); });
+  });
+}
+
+function buildFRPubsForm(rec) {
+  var p = rec ? 'efp_' : 'fp_new_';
+  var statusOpts = ''; PUB_STATUSES.forEach(function(s) { statusOpts += '<option' + (rec&&rec.status===s?' selected':'') + '>' + s + '</option>'; });
+  var h = '<div class="form-grid">';
+  h += '<div class="form-group"><label>Investigator *</label><input id="' + p + 'inv" value="' + (rec?rec.investigator||'':'') + '" placeholder="First Last"></div>';
+  h += '<div class="form-group"><label>Department *</label><select id="' + p + 'dept">' + deptOpts(rec?rec.department:'') + '</select></div>';
+  h += '<div class="form-group full"><label>Citation *</label><textarea id="' + p + 'cit">' + (rec?rec.citation||'':'') + '</textarea></div>';
+  h += '<div class="form-group"><label>Status *</label><select id="' + p + 'status"><option value="">Select...</option>' + statusOpts + '</select></div>';
+  h += '<div class="form-group"><label>New or Updated</label><select id="' + p + 'nu"><option value="New"' + (rec&&rec.newUpdated==='New'?' selected':'') + '>New</option><option value="Updated Status"' + (rec&&rec.newUpdated==='Updated Status'?' selected':'') + '>Updated Status</option></select></div>';
+  h += '<div class="form-group"><label>Quarter</label><select id="' + p + 'q">' + qOpts(rec?rec.quarter:'') + '</select></div>';
+  h += '<div class="form-group"><label>Year</label><input id="' + p + 'yr" type="number" value="' + (rec?rec.year:curYr()) + '"></div>';
+  h += '<div class="form-group"><label>CTSI?</label><select id="' + p + 'ctsi"><option value="yes"' + (rec&&rec.ctsi==='yes'?' selected':'') + '>Yes</option><option value="no"' + (rec&&rec.ctsi==='no'?' selected':'') + '>No</option></select></div>';
+  h += '<div class="form-group"><label>Funding source</label><input id="' + p + 'fsrc" value="' + (rec?rec.fundingSource||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Period of performance &mdash; start</label><input id="' + p + 'pstart" type="date" value="' + (rec?rec.perfStart||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Period of performance &mdash; end</label><input id="' + p + 'pend" type="date" value="' + (rec?rec.perfEnd||'':'') + '"></div>';
+  h += '<div class="form-group full"><label>Notes</label><textarea id="' + p + 'notes">' + (rec?rec.notes||'':'') + '</textarea></div>';
+  h += '</div>';
+  if (!rec) h += '<div class="actions"><button class="btn btn-primary" id="frSubmitPubBtn">Submit publication</button></div>';
+  return h;
+}
+
+function submitFRPubNew() {
+  var inv=gv('fp_new_inv').trim(), dept=gv('fp_new_dept'), cit=gv('fp_new_cit').trim(), status=gv('fp_new_status');
+  if (!inv||!dept||!cit||!status) { alert('Investigator, department, citation and status required.'); return; }
+  var rec = {id:String(nextIds.fp++), facultyName:session.name, investigator:inv, department:dept,
+    citation:cit, status:status, newUpdated:gv('fp_new_nu'),
+    period:gv('fp_new_q')+' '+gv('fp_new_yr'), quarter:gv('fp_new_q'), year:parseInt(gv('fp_new_yr')),
+    ctsi:gv('fp_new_ctsi'), fundingSource:gv('fp_new_fsrc'),
+    perfStart:gv('fp_new_pstart'), perfEnd:gv('fp_new_pend'),
+    notes:gv('fp_new_notes'), submittedDate:new Date().toISOString().split('T')[0]};
+  facultyPubs.push(rec);
+  saveRecord('add', rec, 'facultyPublications');
+  buildFRPubs();
+}
+
+function openFRPubEdit(id) {
+  var rec = facultyPubs.filter(function(r) { return r.id === id; })[0];
+  if (!rec) return;
+  openModal('<div class="modal-title">Edit publication &mdash; ' + (rec.investigator||'') + '</div>' +
+    buildFRPubsForm(rec) +
+    '<div class="actions"><button class="btn" id="frPubEditCancel">Cancel</button>' +
+    '<button class="btn btn-primary" id="frPubEditSave">Save changes</button></div>');
+  el('frPubEditCancel').addEventListener('click', closeModal);
+  el('frPubEditSave').addEventListener('click', function() { saveFRPubEdit(id); });
+}
+
+function saveFRPubEdit(id) {
+  var rec = facultyPubs.filter(function(r) { return r.id === id; })[0];
+  if (!rec) return;
+  rec.investigator = gv('efp_inv').trim() || rec.investigator;
+  rec.department = gv('efp_dept') || rec.department;
+  rec.citation = gv('efp_cit').trim() || rec.citation;
+  rec.status = gv('efp_status') || rec.status;
+  rec.newUpdated = gv('efp_nu');
+  rec.quarter = gv('efp_q'); rec.year = parseInt(gv('efp_yr'));
+  rec.period = rec.quarter + ' ' + rec.year;
+  rec.ctsi = gv('efp_ctsi'); rec.fundingSource = gv('efp_fsrc');
+  rec.perfStart = gv('efp_pstart'); rec.perfEnd = gv('efp_pend');
+  rec.notes = gv('efp_notes');
+  saveRecord('update', rec, 'facultyPublications');
+  closeModal();
+  buildFRPubs();
+}
+
+// ── GRANTS TAB ─────────────────────────────────────────────────────────────
+function buildFRGrants() {
+  var mine = facultyGrants.filter(function(g) { return g.facultyName === session.name; });
+  var h = '<div style="margin-bottom:1.5rem">';
+  h += '<div style="font-size:13px;font-weight:600;margin-bottom:1rem">Add new grant</div>';
+  h += buildFRGrantsForm(null);
+  h += '</div>';
+  if (mine.length) {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1.5rem">';
+    h += '<div style="font-size:13px;font-weight:600;margin-bottom:1rem">My grants (' + mine.length + ')</div>';
+    h += '<div style="overflow-x:auto"><table><thead><tr>';
+    h += '<th>Investigator</th><th>Period</th><th>Grant title</th><th>Type</th><th>Status</th><th>New/Updated</th><th>CTSI</th><th>Funding source</th><th>Actions</th>';
+    h += '</tr></thead><tbody>';
+    mine.forEach(function(r) {
+      h += '<tr>';
+      h += '<td style="font-weight:500;font-size:12px">' + (r.investigator||'') + '</td>';
+      h += '<td style="font-size:12px;white-space:nowrap">' + (r.quarter||'') + ' ' + (r.year||'') + '</td>';
+      h += '<td style="font-size:12px;max-width:160px">' + (r.grantTitle||'&mdash;').substring(0,50) + (r.grantTitle&&r.grantTitle.length>50?'&hellip;':'') + '</td>';
+      h += '<td style="font-size:12px">' + (r.grantType||'') + '</td>';
+      h += '<td><span class="badge ' + (r.status==='Funded'?'badge-approved':'badge-pending') + '">' + (r.status||'') + '</span></td>';
+      h += '<td style="font-size:12px">' + (r.newUpdated||'') + '</td>';
+      h += '<td style="text-align:center">' + (r.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;') + '</td>';
+      h += '<td style="font-size:12px;color:#666">' + (r.fundingSource||'&mdash;') + '</td>';
+      h += '<td><button class="btn btn-sm" data-edit-frgrant="' + r.id + '">Edit</button></td>';
+      h += '</tr>';
+    });
+    h += '</tbody></table></div></div>';
+  } else {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;color:#999;font-size:13px">No grants submitted yet.</div>';
+  }
+  sh('frContent', h);
+  var submitBtn = el('frSubmitGrantBtn');
+  if (submitBtn) submitBtn.addEventListener('click', submitFRGrantNew);
+  document.querySelectorAll('[data-edit-frgrant]').forEach(function(btn) {
+    btn.addEventListener('click', function() { openFRGrantEdit(this.getAttribute('data-edit-frgrant')); });
+  });
+}
+
+function buildFRGrantsForm(rec) {
+  var p = rec ? 'efg_' : 'fg_new_';
+  var gtOpts = ''; GRANT_TYPES.forEach(function(t) { gtOpts += '<option' + (rec&&rec.grantType===t?' selected':'') + '>' + t + '</option>'; });
+  var gsOpts = ''; GRANT_STATUSES.forEach(function(s) { gsOpts += '<option' + (rec&&rec.status===s?' selected':'') + '>' + s + '</option>'; });
+  var h = '<div class="form-grid">';
+  h += '<div class="form-group"><label>Investigator *</label><input id="' + p + 'inv" value="' + (rec?rec.investigator||'':'') + '" placeholder="First Last"></div>';
+  h += '<div class="form-group"><label>Department *</label><select id="' + p + 'dept">' + deptOpts(rec?rec.department:'') + '</select></div>';
+  h += '<div class="form-group full"><label>Grant title</label><input id="' + p + 'title" value="' + (rec?rec.grantTitle||'':'') + '" placeholder="Full grant title"></div>';
+  h += '<div class="form-group"><label>Grant type *</label><select id="' + p + 'gtype"><option value="">Select...</option>' + gtOpts + '</select></div>';
+  h += '<div class="form-group"><label>Status *</label><select id="' + p + 'status"><option value="">Select...</option>' + gsOpts + '</select></div>';
+  h += '<div class="form-group"><label>New or Updated</label><select id="' + p + 'nu"><option value="New"' + (rec&&rec.newUpdated==='New'?' selected':'') + '>New</option><option value="Updated Status"' + (rec&&rec.newUpdated==='Updated Status'?' selected':'') + '>Updated Status</option></select></div>';
+  h += '<div class="form-group"><label>Quarter</label><select id="' + p + 'q">' + qOpts(rec?rec.quarter:'') + '</select></div>';
+  h += '<div class="form-group"><label>Year</label><input id="' + p + 'yr" type="number" value="' + (rec?rec.year:curYr()) + '"></div>';
+  h += '<div class="form-group"><label>CTSI?</label><select id="' + p + 'ctsi"><option value="yes"' + (rec&&rec.ctsi==='yes'?' selected':'') + '>Yes</option><option value="no"' + (rec&&rec.ctsi==='no'?' selected':'') + '>No</option></select></div>';
+  h += '<div class="form-group"><label>Funding source</label><input id="' + p + 'fsrc" value="' + (rec?rec.fundingSource||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Period of performance &mdash; start</label><input id="' + p + 'pstart" type="date" value="' + (rec?rec.perfStart||'':'') + '"></div>';
+  h += '<div class="form-group"><label>Period of performance &mdash; end</label><input id="' + p + 'pend" type="date" value="' + (rec?rec.perfEnd||'':'') + '"></div>';
+  h += '<div class="form-group full"><label>Notes</label><textarea id="' + p + 'notes">' + (rec?rec.notes||'':'') + '</textarea></div>';
+  h += '</div>';
+  if (!rec) h += '<div class="actions"><button class="btn btn-primary" id="frSubmitGrantBtn">Submit grant</button></div>';
+  return h;
+}
+
+function submitFRGrantNew() {
+  var inv=gv('fg_new_inv').trim(), dept=gv('fg_new_dept'), gtype=gv('fg_new_gtype'), status=gv('fg_new_status');
+  if (!inv||!dept||!gtype||!status) { alert('Investigator, department, grant type and status required.'); return; }
+  var rec = {id:String(nextIds.fg++), facultyName:session.name, investigator:inv, department:dept,
+    grantTitle:gv('fg_new_title'), grantType:gtype, status:status, newUpdated:gv('fg_new_nu'),
+    period:gv('fg_new_q')+' '+gv('fg_new_yr'), quarter:gv('fg_new_q'), year:parseInt(gv('fg_new_yr')),
+    ctsi:gv('fg_new_ctsi'), fundingSource:gv('fg_new_fsrc'),
+    perfStart:gv('fg_new_pstart'), perfEnd:gv('fg_new_pend'),
+    notes:gv('fg_new_notes'), submittedDate:new Date().toISOString().split('T')[0]};
+  facultyGrants.push(rec);
+  saveRecord('add', rec, 'facultyGrants');
+  buildFRGrants();
+}
+
+function openFRGrantEdit(id) {
+  var rec = facultyGrants.filter(function(r) { return r.id === id; })[0];
+  if (!rec) return;
+  openModal('<div class="modal-title">Edit grant &mdash; ' + (rec.investigator||'') + ' (' + (rec.grantType||'') + ')</div>' +
+    buildFRGrantsForm(rec) +
+    '<div class="actions"><button class="btn" id="frGrantEditCancel">Cancel</button>' +
+    '<button class="btn btn-primary" id="frGrantEditSave">Save changes</button></div>');
+  el('frGrantEditCancel').addEventListener('click', closeModal);
+  el('frGrantEditSave').addEventListener('click', function() { saveFRGrantEdit(id); });
+}
+
+function saveFRGrantEdit(id) {
+  var rec = facultyGrants.filter(function(r) { return r.id === id; })[0];
+  if (!rec) return;
+  rec.investigator = gv('efg_inv').trim() || rec.investigator;
+  rec.department = gv('efg_dept') || rec.department;
+  rec.grantTitle = gv('efg_title');
+  rec.grantType = gv('efg_gtype') || rec.grantType;
+  rec.status = gv('efg_status') || rec.status;
+  rec.newUpdated = gv('efg_nu');
+  rec.quarter = gv('efg_q'); rec.year = parseInt(gv('efg_yr'));
+  rec.period = rec.quarter + ' ' + rec.year;
+  rec.ctsi = gv('efg_ctsi'); rec.fundingSource = gv('efg_fsrc');
+  rec.perfStart = gv('efg_pstart'); rec.perfEnd = gv('efg_pend');
+  rec.notes = gv('efg_notes');
+  saveRecord('update', rec, 'facultyGrants');
+  closeModal();
+  buildFRGrants();
+}
+
+
+// ── FACULTY DATABASE (admin view) ──────────────────────────────────────────
+function buildFacultyDB(activeTab) {
+  activeTab = activeTab || 'hours';
+  var allFac = ["David Elashoff"].concat(FACULTY);
+
+  var h = '<div class="card">';
+  h += '<div class="section-hdr" style="margin-bottom:1rem">';
+  h += '<span class="card-title" style="margin:0">Faculty reporting database</span>';
+  h += '<div style="display:flex;gap:8px;flex-wrap:wrap">';
+  h += '<select id="fdbFac" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="">All faculty</option>';
+  allFac.forEach(function(f) { h += '<option>' + f + '</option>'; });
+  h += '</select>';
+  h += '<select id="fdbQ" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="">All quarters</option>';
+  ['Q1','Q2','Q3','Q4'].forEach(function(q) { h += '<option>' + q + '</option>'; });
+  h += '</select>';
+  h += '<input id="fdbYr" type="number" placeholder="Year" style="width:75px;font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px">';
+  h += '</div></div>';
+
+  h += '<div class="tab-group" style="margin-bottom:1.5rem">';
+  h += '<button class="tab-btn' + (activeTab==='hours'?' active':'') + '" data-fdbtab="hours">Hours (' + facultyHours.length + ')</button>';
+  h += '<button class="tab-btn' + (activeTab==='pubs'?' active':'') + '" data-fdbtab="pubs">Publications (' + facultyPubs.length + ')</button>';
+  h += '<button class="tab-btn' + (activeTab==='grants'?' active':'') + '" data-fdbtab="grants">Grants (' + facultyGrants.length + ')</button>';
+  h += '</div>';
+  h += '<div id="fdbContent"></div></div>';
+
+  sh('pageContainer', h);
+
+  document.querySelectorAll('[data-fdbtab]').forEach(function(btn) {
+    btn.addEventListener('click', function() { buildFacultyDB(this.getAttribute('data-fdbtab')); });
+  });
+  ['fdbFac','fdbQ','fdbYr'].forEach(function(id) {
+    var e = el(id);
+    if (e) e.addEventListener('change', function() { renderFDBContent(activeTab); });
+    if (e) e.addEventListener('input', function() { renderFDBContent(activeTab); });
+  });
+
+  renderFDBContent(activeTab);
+}
+
+function getFDBFiltered(dataset) {
+  var fac = gv('fdbFac'), q = gv('fdbQ'), yr = parseInt(gv('fdbYr')) || 0;
+  return dataset.filter(function(r) {
+    if (fac && r.facultyName !== fac) return false;
+    if (q && r.quarter !== q) return false;
+    if (yr && r.year !== yr) return false;
+    return true;
+  });
+}
+
+function renderFDBContent(tab) {
+  if (tab === 'hours') renderFDBHours();
+  else if (tab === 'pubs') renderFDBPubs();
+  else renderFDBGrants();
+}
+
+function renderFDBHours() {
+  var data = getFDBFiltered(facultyHours);
+  if (!data.length) { sh('fdbContent', '<div class="empty">No hours entries match the current filters.</div>'); return; }
+  var totalHrs = data.reduce(function(a,r) { return a + (r.totalHours||0); }, 0);
+  var ctsiCount = data.filter(function(r) { return r.ctsi === 'yes'; }).length;
+  var h = '<div class="metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:1rem">';
+  h += '<div class="metric"><div class="metric-label">Total entries</div><div class="metric-value mv-blue">' + data.length + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-purple">' + fmtHrs(totalHrs) + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">CTSI entries</div><div class="metric-value mv-amber">' + ctsiCount + '</div></div></div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>Faculty</th><th>Investigator</th><th>Department</th><th>Period</th>';
+  h += '<th>Data Analysis</th><th>Grant App</th><th>Admin</th><th>Study Design</th><th>Data Mgmt</th><th>Total hrs</th>';
+  h += '<th>CTSI</th><th>Funding source</th><th>POP start</th><th>POP end</th><th>Description</th><th>Submitted</th>';
+  h += '</tr></thead><tbody>';
+  data.forEach(function(r) {
+    h += '<tr>';
+    h += '<td style="font-weight:600;font-size:12px;white-space:nowrap">' + (r.facultyName||'') + '</td>';
+    h += '<td style="font-size:12px">' + (r.investigator||'') + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + (r.department||'') + '</td>';
+    h += '<td style="font-size:12px;white-space:nowrap">' + (r.quarter||'') + ' ' + (r.year||'') + '</td>';
+    h += '<td style="font-size:12px;text-align:center">' + (r.dataAnalysis||0) + '</td>';
+    h += '<td style="font-size:12px;text-align:center">' + (r.grantApplication||0) + '</td>';
+    h += '<td style="font-size:12px;text-align:center">' + (r.administration||0) + '</td>';
+    h += '<td style="font-size:12px;text-align:center">' + (r.studyDesign||0) + '</td>';
+    h += '<td style="font-size:12px;text-align:center">' + (r.dataManagement||0) + '</td>';
+    h += '<td style="font-weight:600;text-align:center">' + fmtHrs(r.totalHours) + '</td>';
+    h += '<td style="text-align:center">' + (r.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;') + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + (r.fundingSource||'&mdash;') + '</td>';
+    h += '<td style="font-size:12px">' + fmtDate(r.perfStart) + '</td>';
+    h += '<td style="font-size:12px">' + fmtDate(r.perfEnd) + '</td>';
+    h += '<td style="font-size:12px;color:#666;max-width:200px">' + (r.serviceDescription||'').substring(0,80) + (r.serviceDescription&&r.serviceDescription.length>80?'&hellip;':'') + '</td>';
+    h += '<td style="font-size:12px;white-space:nowrap">' + fmtDate(r.submittedDate) + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('fdbContent', h);
+}
+
+function renderFDBPubs() {
+  var data = getFDBFiltered(facultyPubs);
+  if (!data.length) { sh('fdbContent', '<div class="empty">No publication entries match the current filters.</div>'); return; }
+  var ctsiCount = data.filter(function(r) { return r.ctsi === 'yes'; }).length;
+  var byStatus = {};
+  data.forEach(function(r) { byStatus[r.status] = (byStatus[r.status]||0) + 1; });
+  var h = '<div class="metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:1rem">';
+  h += '<div class="metric"><div class="metric-label">Total entries</div><div class="metric-value mv-blue">' + data.length + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">CTSI entries</div><div class="metric-value mv-amber">' + ctsiCount + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Published</div><div class="metric-value mv-green">' + (byStatus['Published']||0) + '</div></div></div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>Faculty</th><th>Investigator</th><th>Department</th><th>Period</th>';
+  h += '<th>Status</th><th>New/Updated</th><th>CTSI</th><th>Funding source</th>';
+  h += '<th>POP start</th><th>POP end</th><th>Notes</th><th>Citation</th><th>Submitted</th>';
+  h += '</tr></thead><tbody>';
+  data.forEach(function(r) {
+    h += '<tr>';
+    h += '<td style="font-weight:600;font-size:12px;white-space:nowrap">' + (r.facultyName||'') + '</td>';
+    h += '<td style="font-size:12px">' + (r.investigator||'') + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + (r.department||'') + '</td>';
+    h += '<td style="font-size:12px;white-space:nowrap">' + (r.quarter||'') + ' ' + (r.year||'') + '</td>';
+    h += '<td><span class="badge badge-pending">' + (r.status||'') + '</span></td>';
+    h += '<td style="font-size:12px">' + (r.newUpdated||'') + '</td>';
+    h += '<td style="text-align:center">' + (r.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;') + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + (r.fundingSource||'&mdash;') + '</td>';
+    h += '<td style="font-size:12px">' + fmtDate(r.perfStart) + '</td>';
+    h += '<td style="font-size:12px">' + fmtDate(r.perfEnd) + '</td>';
+    h += '<td style="font-size:12px;color:#666;max-width:150px">' + (r.notes||'&mdash;').substring(0,60) + '</td>';
+    h += '<td style="font-size:11px;color:#666;max-width:250px">' + (r.citation||'').substring(0,100) + (r.citation&&r.citation.length>100?'&hellip;':'') + '</td>';
+    h += '<td style="font-size:12px;white-space:nowrap">' + fmtDate(r.submittedDate) + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('fdbContent', h);
+}
+
+function renderFDBGrants() {
+  var data = getFDBFiltered(facultyGrants);
+  if (!data.length) { sh('fdbContent', '<div class="empty">No grant entries match the current filters.</div>'); return; }
+  var ctsiCount = data.filter(function(r) { return r.ctsi === 'yes'; }).length;
+  var funded = data.filter(function(r) { return r.status === 'Funded'; }).length;
+  var submitted = data.filter(function(r) { return r.status === 'Submitted'; }).length;
+  var h = '<div class="metrics" style="grid-template-columns:repeat(4,minmax(0,1fr));margin-bottom:1rem">';
+  h += '<div class="metric"><div class="metric-label">Total entries</div><div class="metric-value mv-blue">' + data.length + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Funded</div><div class="metric-value mv-green">' + funded + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">Submitted</div><div class="metric-value mv-amber">' + submitted + '</div></div>';
+  h += '<div class="metric"><div class="metric-label">CTSI entries</div><div class="metric-value mv-purple">' + ctsiCount + '</div></div></div>';
+  h += '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>Faculty</th><th>Investigator</th><th>Department</th><th>Period</th>';
+  h += '<th>Grant title</th><th>Type</th><th>Status</th><th>New/Updated</th>';
+  h += '<th>CTSI</th><th>Funding source</th><th>POP start</th><th>POP end</th><th>Notes</th><th>Submitted</th>';
+  h += '</tr></thead><tbody>';
+  data.forEach(function(r) {
+    h += '<tr>';
+    h += '<td style="font-weight:600;font-size:12px;white-space:nowrap">' + (r.facultyName||'') + '</td>';
+    h += '<td style="font-size:12px">' + (r.investigator||'') + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + (r.department||'') + '</td>';
+    h += '<td style="font-size:12px;white-space:nowrap">' + (r.quarter||'') + ' ' + (r.year||'') + '</td>';
+    h += '<td style="font-size:12px;max-width:180px">' + (r.grantTitle||'&mdash;').substring(0,60) + '</td>';
+    h += '<td style="font-size:12px">' + (r.grantType||'') + '</td>';
+    h += '<td><span class="badge ' + (r.status==='Funded'?'badge-approved':'badge-pending') + '">' + (r.status||'') + '</span></td>';
+    h += '<td style="font-size:12px">' + (r.newUpdated||'') + '</td>';
+    h += '<td style="text-align:center">' + (r.ctsi==='yes'?'<span class="badge badge-ctsi">CTSI</span>':'&mdash;') + '</td>';
+    h += '<td style="font-size:12px;color:#666">' + (r.fundingSource||'&mdash;') + '</td>';
+    h += '<td style="font-size:12px">' + fmtDate(r.perfStart) + '</td>';
+    h += '<td style="font-size:12px">' + fmtDate(r.perfEnd) + '</td>';
+    h += '<td style="font-size:12px;color:#666;max-width:150px">' + (r.notes||'&mdash;').substring(0,60) + '</td>';
+    h += '<td style="font-size:12px;white-space:nowrap">' + fmtDate(r.submittedDate) + '</td>';
+    h += '</tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('fdbContent', h);
+}
+
 
 // ── Start ──────────────────────────────────────────────────────────────────
 showLogin();
