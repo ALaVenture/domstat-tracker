@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DOMStat Project Tracker</title>
 <style>
-
+ 
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5F3;color:#1a1a1a;font-size:14px}
 .app{max-width:1150px;margin:0 auto;padding:1rem}
@@ -86,7 +86,7 @@ textarea{resize:vertical;min-height:60px}
 .err-msg{font-size:12px;color:#A32D2D;margin-bottom:10px;display:none}
 .initials{width:26px;height:26px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#185FA5;flex-shrink:0}
 @media(max-width:600px){.metrics{grid-template-columns:1fr 1fr}.form-grid{grid-template-columns:1fr}.full{grid-column:1}}
-
+ 
 </style>
 </head>
 <body>
@@ -95,7 +95,7 @@ textarea{resize:vertical;min-height:60px}
   <div class="modal" id="modalContent"></div>
 </div>
 <script>
-
+ 
 const API="https://script.google.com/macros/s/AKfycbyWbM9m0CRFpbeiesoO3UY9OvGEnFZMyRSH4NTby1qpjS3azDQQRkXmIkjfYxcnqzLj/exec";
 const STAFF=["Angelique Rubio", "Angshuman Saha", "Arseniy Vasilyev", "Chris Castle", "Claudia Perez", "Daniela Markovic", "Dennis Ruenger", "Eric Demer", "Estefania Sanchez Salas", "Holly Wilhalme", "Jenny Brook", "Jinhui Liu", "Josh Lee", "Keren Chen", "Lillian Chen", "Lucia Chen", "Mei Leng", "Paige Smith", "Rebecca Chung", "Rong Guo", "Sitaram Vangala", "Tahmineh Romero", "Tristan Grogan", "Tristan Tibbe", "Victoria Adebambo", "Yash Motwani"];
 const FACULTY=["Chi-Hong Tseng", "Nicholas Jackson", "Alexandra Klomhaus", "Li-Jung Liang", "Myung Sim", "Yiqun Jiang", "Anita Yuan"];
@@ -130,21 +130,21 @@ const PAGE_LABELS={
 };
 const PROF_BG={Beginner:"#E6F1FB",Proficient:"#EAF3DE",Expert:"#EEEDFE"};
 const PROF_COL={Beginner:"#185FA5",Proficient:"#3B6D11",Expert:"#3C3489"};
-
+ 
 // ── State ──────────────────────────────────────────────────────────────────
 var projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[];
 var profilesData={},skillRequests=[],intakeTeam=[];
 var session={role:"public",name:null,piEmail:null};
 var currentPage="intake";
 var nextIds={proj:1,hrs:1,appr:1,fh:1,fp:1,fg:1,sr:1};
-
+ 
 // ── DOM helpers ────────────────────────────────────────────────────────────
 function el(id){return document.getElementById(id);}
 function gv(id){var e=el(id);return e?e.value:"";}
 function sh(id,html){var e=el(id);if(e)e.innerHTML=html;}
 function openModal(html){el("modalContent").innerHTML=html;el("modalOverlay").className="modal-overlay open";}
 function closeModal(){el("modalOverlay").className="modal-overlay";}
-
+ 
 // ── Utilities ──────────────────────────────────────────────────────────────
 function initials(n){var p=(n||"").split(" ");return((p[0]||"?")[0]+(p[p.length-1]||"?")[0]).toUpperCase();}
 function fmtDate(d){if(!d)return"—";try{var dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return d;}}
@@ -165,14 +165,14 @@ function projBill(id){return hoursData.filter(function(h){return h.projectId===i
 function isAdmin(){return["admin","director","assocdir"].indexOf(session.role)>-1;}
 function canApprove(){return["admin","director","assocdir"].indexOf(session.role)>-1;}
 function canEditNow(){return["admin","director","assocdir","staffmgr","faculty"].indexOf(session.role)>-1;}
-
+ 
 function setSyncStatus(state,msg){
   var dot=el("syncDot"),txt=el("syncStatus");
   if(!dot||!txt)return;
   dot.className="sync-dot"+(state==="syncing"?" syncing":state==="err"?" err":"");
   txt.textContent=msg;
 }
-
+ 
 function getFridayWeeks(n){
   var weeks=[],d=new Date();d.setHours(0,0,0,0);
   var diff=d.getDay()<=5?5-d.getDay():5-d.getDay()+7;
@@ -180,7 +180,7 @@ function getFridayWeeks(n){
   for(var i=0;i<n;i++){weeks.push(new Date(d).toISOString().split("T")[0]);d.setDate(d.getDate()-7);}
   return weeks;
 }
-
+ 
 // ── Badges ─────────────────────────────────────────────────────────────────
 function userBadge(name){
   if(name==="David Elashoff") return "<span class='ubadge ub-dir'>&#128311; Director</span>";
@@ -190,7 +190,7 @@ function userBadge(name){
   if(STAFF.indexOf(name)>-1) return "<span class='ubadge ub-staff'>&#128100; Staff</span>";
   return "";
 }
-
+ 
 function roleBadgeHtml(){
   var labels={public:"PI / Submitter",staff:"Staff",staffmgr:"Staff Manager",faculty:"Faculty",
     assocdir:"Associate Director",director:"Director",fund:"Fund Manager",admin:"Admin"};
@@ -202,7 +202,7 @@ function roleBadgeHtml(){
   var txt=icons[r]+" "+(labels[r]||r)+(session.name?" — "+session.name:"");
   return "<span class='ubadge "+cls[r]+"'>"+txt+"</span>";
 }
-
+ 
 // ── Row converters ─────────────────────────────────────────────────────────
 function rowToProject(r){
   return{id:String(r.id||""),pi:r.pi||"",project:r.project||"",type:r.type||"hr",
@@ -241,14 +241,14 @@ function rowToApproval(r){
     status:r.status||"pending",requestedDate:r.requestedDate||"",
     reviewedBy:r.reviewedBy||"",reviewedDate:r.reviewedDate||"",notes:r.notes||""};
 }
-
+ 
 // ── API ────────────────────────────────────────────────────────────────────
 function fetchSheet(name){
   return fetch(API+"?sheet="+name+"&t="+Date.now())
     .then(function(r){return r.ok?r.json():[];})
     .catch(function(){return[];});
 }
-
+ 
 function saveRecord(action,record,sheet){
   setSyncStatus("syncing","Saving...");
   return fetch(API,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},
@@ -256,7 +256,7 @@ function saveRecord(action,record,sheet){
     .then(function(){setSyncStatus("ok","Saved");setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},2000);return true;})
     .catch(function(){setSyncStatus("err","Save failed");return false;});
 }
-
+ 
 function submitApproval(reqType,projId,projName,field,oldVal,newVal){
   var rec={id:String(nextIds.appr++),requestType:reqType,requestedBy:session.name,
     projectId:projId,projectName:projName,fieldChanged:field,
@@ -267,7 +267,7 @@ function submitApproval(reqType,projId,projName,field,oldVal,newVal){
   approvals.push(rec);
   return saveRecord("add",rec,"approvals");
 }
-
+ 
 function loadData(manual){
   setSyncStatus("syncing",manual?"Refreshing...":"Connecting...");
   var p0=fetchSheet("Sheet1");
@@ -305,7 +305,7 @@ function loadData(manual){
     renderPage(currentPage);
   });
 }
-
+ 
 // ── Auth / Login ───────────────────────────────────────────────────────────
 function showLogin() {
   var staffOpts = '<option value="">Select your name...</option>';
@@ -317,7 +317,7 @@ function showLogin() {
   ['David Elashoff'].concat(FACULTY).forEach(function(s) {
     facOpts += '<option value="' + s + '">' + s + (s === 'David Elashoff' ? ' \uD83D\uDD37' : '') + '</option>';
   });
-
+ 
   var h = '<div class="lw"><div class="lc">';
   h += '<div style="font-size:20px;font-weight:600;margin-bottom:4px"><span style="color:#185FA5">DOM</span>Stat Project Tracker</div>';
   h += '<div style="font-size:13px;color:#888;margin-bottom:1.5rem">Department of Medicine Statistics &mdash; UCLA</div>';
@@ -362,7 +362,7 @@ function showLogin() {
   h += '<button class="btn btn-primary" style="width:100%" data-login="admin">Sign in</button></div>';
   h += '</div></div>';
   sh('root', h);
-
+ 
   // Attach all handlers — NO inline onclick anywhere
   document.querySelectorAll('[data-tab]').forEach(function(btn) {
     btn.addEventListener('click', function() { switchLoginTab(this.getAttribute('data-tab')); });
@@ -384,7 +384,7 @@ function showLogin() {
     });
   });
 }
-
+ 
 function switchLoginTab(tab) {
   ['public','staff','faculty','admin'].forEach(function(t) {
     var btn = document.querySelector('[data-tab="' + t + '"]');
@@ -393,7 +393,7 @@ function switchLoginTab(tab) {
     if (panel) panel.style.display = t === tab ? 'block' : 'none';
   });
 }
-
+ 
 function enterAsPublic(mode) {
   if (mode === 'view') {
     var h = '<div class="lw"><div class="lc">';
@@ -418,7 +418,7 @@ function enterAsPublic(mode) {
     renderPage('intake');
   }
 }
-
+ 
 function doPILogin() {
   var email = gv('pi-email').trim().toLowerCase();
   var pin = gv('pi-pin').trim();
@@ -436,7 +436,7 @@ function doPILogin() {
   renderNav();
   renderPage('pidashboard');
 }
-
+ 
 function doLogin(tab) {
   var role, name, code, errEl, expectedCode;
   if (tab === 'staff') {
@@ -463,19 +463,19 @@ function doLogin(tab) {
   currentPage = ROLE_PAGES[role][0];
   loadData(false);
 }
-
+ 
 function logout() {
   session = {role:'public', name:null, piEmail:null};
   currentPage = 'intake';
   showLogin();
 }
-
+ 
 // ── Nav / Routing ──────────────────────────────────────────────────────────
 function renderNav() {
   var pages = (ROLE_PAGES[session.role] || []).filter(function(p) { return p !== 'editproject'; });
   var pendingAppr = approvals.filter(function(a) { return a.status === 'pending'; }).length;
   var pendingSkill = skillRequests.filter(function(r) { return r.status === 'pending'; }).length;
-
+ 
   var top = '<div class="topbar">';
   top += '<div style="display:flex;align-items:center;gap:10px">';
   top += '<span class="logo"><span>DOM</span>Stat Project Tracker</span>';
@@ -487,7 +487,7 @@ function renderNav() {
   }
   top += '<button class="btn btn-sm" id="logoutBtn">Sign out</button>';
   top += '</div></div>';
-
+ 
   var nav = '<div class="nav" id="mainNav">';
   pages.forEach(function(p) {
     var lbl = PAGE_LABELS[p] || p;
@@ -496,9 +496,9 @@ function renderNav() {
     nav += '<button class="nb' + (currentPage === p ? ' active' : '') + '" data-page="' + p + '">' + lbl + '</button>';
   });
   nav += '</div>';
-
+ 
   sh('root', '<div class="app">' + top + nav + '<div id="pageContainer"></div></div>');
-
+ 
   // Attach handlers
   var navEl = el('mainNav');
   if (navEl) navEl.querySelectorAll('.nb').forEach(function(btn) {
@@ -509,7 +509,7 @@ function renderNav() {
   var lo = el('logoutBtn');
   if (lo) lo.addEventListener('click', logout);
 }
-
+ 
 function renderPage(p) {
   var pages = ROLE_PAGES[session.role] || [];
   if (pages.indexOf(p) === -1) p = pages[0];
@@ -533,7 +533,7 @@ function renderPage(p) {
     console.error('renderPage error:', e);
   }
 }
-
+ 
 // ── Shared UI helpers ──────────────────────────────────────────────────────
 function teamPills(p) {
   var html = '';
@@ -548,7 +548,7 @@ function teamPills(p) {
   });
   return html;
 }
-
+ 
 function budgetBar(p) {
   if (!p.budgetTarget) return '';
   var spent = projBill(p.id);
@@ -557,9 +557,9 @@ function budgetBar(p) {
   return '<div class="budget-bar"><div class="budget-fill" style="width:' + pct + '%;background:' + col + '"></div></div>' +
     '<div style="font-size:10px;color:#888;margin-top:2px">' + fmtMoney(spent) + ' / ' + fmtMoney(p.budgetTarget) + '</div>';
 }
-
+ 
 function getProfile(name) { return profilesData[name] || {skills:[], updatedDate:''}; }
-
+ 
 function getAllSkills() {
   var tax = JSON.parse(JSON.stringify(SKILLS));
   skillRequests.filter(function(r) { return r.status === 'approved'; }).forEach(function(r) {
@@ -567,7 +567,7 @@ function getAllSkills() {
   });
   return tax;
 }
-
+ 
 function skillBadge(skill) {
   var lvl = skill.level || 'Proficient';
   var isWOC = skill.name === 'WOC (VA Authorization)';
@@ -576,7 +576,7 @@ function skillBadge(skill) {
   return '<span class="skill-badge" style="background:' + bg + ';color:' + col + ';border:1px solid ' + (isWOC ? '#EF9F27' : 'transparent') + '">' +
     (isWOC ? '&#127973; ' : '') + skill.name + ' <span style="opacity:.65;font-size:10px">&middot; ' + lvl + '</span></span>';
 }
-
+ 
 function profileSkillsHtml(name) {
   var p = getProfile(name);
   if (!(p.skills || []).length) return '';
@@ -591,7 +591,7 @@ function profileSkillsHtml(name) {
   });
   return html;
 }
-
+ 
 // ── Detail modal ───────────────────────────────────────────────────────────
 function showDetail(id) {
   var p = null;
@@ -639,7 +639,7 @@ function showDetail(id) {
   var invBtn = el('detailInvoiceBtn');
   if (invBtn) invBtn.addEventListener('click', function() { closeModal(); sendInvoice(id); });
 }
-
+ 
 function markProcessed(id) {
   var p = null;
   for (var i = 0; i < projects.length; i++) { if (projects[i].id === id) { p = projects[i]; break; } }
@@ -648,7 +648,7 @@ function markProcessed(id) {
   saveRecord('update', projectToRow(p), 'Sheet1');
   renderPage(currentPage);
 }
-
+ 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────
 function buildDashboard() {
   var isStaff = session.role === 'staff' || session.role === 'staffmgr';
@@ -662,13 +662,13 @@ function buildDashboard() {
   var pendingSkill = canApprove() ? skillRequests.filter(function(r) { return r.status === 'pending'; }).length : 0;
   var myPending = session.role === 'staff' ? approvals.filter(function(a) { return a.requestedBy === session.name && a.status === 'pending'; }).length : 0;
   var outstanding = canFunds ? myP.reduce(function(a,p) { return a + Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0)); }, 0) : null;
-
+ 
   var alerts = '';
   if (canApprove() && pendingAppr) alerts += '<div class="alert alert-warn"><strong>' + pendingAppr + ' change request' + (pendingAppr>1?'s':'') + '</strong> awaiting approval &mdash; <a href="#" id="gotoApprovals" style="color:inherit;font-weight:600">Review now &rarr;</a></div>';
   if (canApprove() && pendingSkill) alerts += '<div class="alert alert-info"><strong>' + pendingSkill + ' skill request' + (pendingSkill>1?'s':'') + '</strong> pending &mdash; <a href="#" id="gotoSkills" style="color:inherit;font-weight:600">Review &rarr;</a></div>';
   if (myPending) alerts += '<div class="alert alert-info">You have <strong>' + myPending + ' pending request' + (myPending>1?'s':'') + '</strong> awaiting admin approval</div>';
   myP.filter(function(p) { return p.status === 'winding'; }).forEach(function(p) { var d=daysLeft(p.end); if(d<90&&d>0) alerts += '<div class="alert alert-warn"><strong>' + p.project + '</strong> winds down in ' + d + ' days</div>'; });
-
+ 
   var h = '<div class="metrics">';
   h += '<div class="metric"><div class="metric-label">' + (isStaff?'My active':'Active') + ' projects</div><div class="metric-value mv-blue">' + active + '</div></div>';
   h += '<div class="metric"><div class="metric-label">' + curQ() + ' hours</div><div class="metric-value mv-purple">' + fmtHrs(qHrs) + '</div></div>';
@@ -701,7 +701,7 @@ function buildDashboard() {
   var ga = el('gotoApprovals'); if (ga) ga.addEventListener('click', function(e) { e.preventDefault(); renderPage('approvals'); });
   var gs = el('gotoSkills'); if (gs) gs.addEventListener('click', function(e) { e.preventDefault(); renderPage('staffskills'); });
 }
-
+ 
 // ── PI DASHBOARD ───────────────────────────────────────────────────────────
 function buildPIDashboard() {
   var piEmail = (session.piEmail || '').toLowerCase();
@@ -752,7 +752,7 @@ function buildPIDashboard() {
   if (!myP.length) h += '<div class="card"><div class="empty">No projects found for your email. Contact your DOMStat fund manager.</div></div>';
   sh('pageContainer', h);
 }
-
+ 
 // ── MY PROJECTS / ALL PROJECTS ─────────────────────────────────────────────
 function buildMyProjects() {
   var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); });
@@ -779,7 +779,7 @@ function buildMyProjects() {
   document.querySelectorAll('[data-detail]').forEach(function(row) { row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); }); });
   var lb = el('logHrsBtn'); if (lb) lb.addEventListener('click', function() { renderPage('loghours'); });
 }
-
+ 
 function buildAllProjects() {
   var allSkills = Object.values ? Object.keys(getAllSkills()).reduce(function(a,k) { return a.concat(getAllSkills()[k]); }, []) : [];
   var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">All projects (' + projects.length + ')</span>';
@@ -802,7 +802,7 @@ function buildAllProjects() {
   var sb = el('submitProjBtn'); if (sb) sb.addEventListener('click', function() { renderPage('intake'); });
   var sj = el('searchJoinBtn'); if (sj) sj.addEventListener('click', function() { renderPage('editproject'); });
 }
-
+ 
 function buildAPRows(list) {
   if (!list.length) return '<tr><td colspan="8" class="empty">No projects match filters</td></tr>';
   var h = '';
@@ -823,7 +823,7 @@ function buildAPRows(list) {
   }, 50);
   return h;
 }
-
+ 
 function applyAllFilters() {
   var type=gv('fType'),status=gv('fStatus'),dept=gv('fDept'),staff=gv('fStaff'),ps=gv('fPS'),skill=gv('fSkill');
   var f = projects.filter(function(p) {
@@ -837,7 +837,7 @@ function applyAllFilters() {
   });
   sh('apBody', buildAPRows(f));
 }
-
+ 
 // ── MY STATUS ──────────────────────────────────────────────────────────────
 function buildMyStatus() {
   var h = '<div class="card"><div class="card-title">My submissions</div>';
@@ -864,7 +864,7 @@ function searchMyStatus() {
   h += '</tbody></table></div>';
   sh('ssResults', h);
 }
-
+ 
 // ── LOG HOURS ──────────────────────────────────────────────────────────────
 function buildLogHours() {
   var weeks = getFridayWeeks(12);
@@ -888,7 +888,7 @@ function buildLogHours() {
     refreshLogProjects(session.name);
   }
 }
-
+ 
 function refreshLogProjects(staffName) {
   if (!staffName) { sh('logProjectsSection','<div class="empty">Select a staff member above.</div>'); return; }
   var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === staffName; }); });
@@ -916,7 +916,7 @@ function refreshLogProjects(staffName) {
     inp.addEventListener('input', function() { calcBilling(this.getAttribute('data-proj'), parseInt(this.getAttribute('data-si')), staffName2); });
   });
 }
-
+ 
 function calcBilling(projId, svcIdx, staffName) {
   var rate = RATES[staffName] || 66.08;
   var hrs = parseFloat((el('hrs_'+projId+'_'+svcIdx)||{}).value) || 0;
@@ -928,7 +928,7 @@ function calcBilling(projId, svcIdx, staffName) {
   var tot = el('pWT_'+projId);
   if (tot) tot.innerHTML = th.toFixed(1) + ' hrs &mdash; ' + fmtMoney(tb);
 }
-
+ 
 function submitHours() {
   var weekEnding = gv('logWeek');
   var staffName = isAdmin() ? gv('logStaff') : session.name;
@@ -956,7 +956,7 @@ function submitHours() {
     el('logMoreBtn').addEventListener('click', function() { closeModal(); renderPage('loghours'); });
   });
 }
-
+ 
 // ── MY HOURS ───────────────────────────────────────────────────────────────
 function buildMyHours() {
   var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">My hours &mdash; ' + session.name + '</span><button class="btn btn-sm btn-primary" id="logHrsBtn2">+ Log hours</button></div>';
@@ -996,7 +996,7 @@ function renderMyHoursTable(q, yr) {
   h += '</tbody></table></div>';
   sh('mhContent', h);
 }
-
+ 
 // ── EDIT PROJECT / JOIN ────────────────────────────────────────────────────
 function buildEditProject() {
   var h = '<div class="card"><div class="card-title">Search, join &amp; edit projects</div>';
@@ -1159,7 +1159,7 @@ function saveEditProject(pid) {
   saveRecord('update', projectToRow(p), 'Sheet1');
   closeModal(); renderPage('allprojects');
 }
-
+ 
 // ── INTAKE FORM ────────────────────────────────────────────────────────────
 function buildIntake() {
   intakeTeam = [];
@@ -1204,7 +1204,7 @@ function buildIntake() {
   el('submitProjBtn2').addEventListener('click', submitProject);
   var aitb = el('addTeamIntakeBtn'); if (aitb) aitb.addEventListener('click', addTeamMember);
 }
-
+ 
 function renderIntakeTeam() {
   var tb = el('intakeTeamBuilder'); if (!tb) return;
   if (!intakeTeam.length) { tb.innerHTML = '<div style="font-size:12px;color:#999;padding:8px;background:#f9f9f9;border-radius:8px">No team members added yet.</div>'; return; }
@@ -1222,7 +1222,7 @@ function renderIntakeTeam() {
   document.querySelectorAll('[data-setlead-intake]').forEach(function(btn) { btn.addEventListener('click', function() { intakeTeam.forEach(function(m){m.lead=false;}); var n=this.getAttribute('data-setlead-intake'); intakeTeam.forEach(function(m){if(m.name===n)m.lead=true;}); renderIntakeTeam(); }); });
   document.querySelectorAll('[data-remove-intake]').forEach(function(btn) { btn.addEventListener('click', function() { intakeTeam=intakeTeam.filter(function(m){return m.name!==this.getAttribute('data-remove-intake');}.bind(this)); if(intakeTeam.length&&!intakeTeam.some(function(m){return m.lead;}))intakeTeam[0].lead=true; renderIntakeTeam(); }); });
 }
-
+ 
 function addTeamMember() {
   var name = gv('addStaffSel'); if (!name) return;
   if (intakeTeam.some(function(m){return m.name===name;})) { alert('Already added.'); return; }
@@ -1231,7 +1231,7 @@ function addTeamMember() {
   el('addStaffSel').value = '';
   renderIntakeTeam();
 }
-
+ 
 function submitProject() {
   var sub=gv('f_sub').trim(), pi=gv('f_pi').trim(), proj=gv('f_project').trim();
   var type=gv('f_type'), start=gv('f_start'), end=gv('f_end'), dept=gv('f_dept');
@@ -1264,7 +1264,7 @@ function submitProject() {
     el('anotherBtn').addEventListener('click', function() { closeModal(); renderPage('intake'); });
   });
 }
-
+ 
 // ── BILLING & INVOICING ────────────────────────────────────────────────────
 function buildBilling() {
   var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">Hours &amp; Billing</span></div>';
@@ -1316,7 +1316,7 @@ function renderBillingTable(q, yr) {
   sh('billingContent', h);
   document.querySelectorAll('[data-invoice]').forEach(function(btn){btn.addEventListener('click',function(){sendInvoice(this.getAttribute('data-invoice'));});});
 }
-
+ 
 function sendInvoice(pid) {
   var p=projects.filter(function(x){return x.id===pid;})[0]; if(!p)return;
   var ph=hoursData.filter(function(h){return h.projectId===pid;});
@@ -1332,7 +1332,7 @@ function sendInvoice(pid) {
   var subject=encodeURIComponent('DOMStat Invoice -- '+p.project+' -- '+today);
   window.location.href='mailto:'+(p.piEmail||'')+'?subject='+subject+'&body='+body;
 }
-
+ 
 // ── FUND MANAGER QUEUE ─────────────────────────────────────────────────────
 function buildFund() {
   var pending=projects.filter(function(p){return p.fundManagerStatus==='pending';});
@@ -1371,7 +1371,7 @@ function buildFund() {
   sh('pageContainer',h);
   document.querySelectorAll('[data-process]').forEach(function(btn){btn.addEventListener('click',function(){markProcessed(this.getAttribute('data-process'));});});
 }
-
+ 
 // ── APPROVALS ──────────────────────────────────────────────────────────────
 function buildApprovals() {
   var pending=approvals.filter(function(a){return a.status==='pending';});
@@ -1415,7 +1415,7 @@ function reviewApproval(id,decision){
   saveRecord('update',a,'approvals');
   buildApprovals();
 }
-
+ 
 // ── STAFF OVERVIEW ─────────────────────────────────────────────────────────
 function buildStaffOverview(){
   var h='<div class="card"><div class="card-title">Staff assignments</div><div style="overflow-x:auto"><table><thead><tr><th>Staff member</th><th>Leads</th><th>Supporting</th><th>Types</th></tr></thead><tbody>';
@@ -1431,7 +1431,7 @@ function buildStaffOverview(){
   h+='</tbody></table></div></div>';
   sh('pageContainer',h);
 }
-
+ 
 // ── BUDGETS ────────────────────────────────────────────────────────────────
 function buildBudgets(){
   var h='<div class="card"><div class="card-title">Budget management</div><div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Budget target</th><th>Total billed</th><th>Remaining</th><th>Utilization</th><th>Action</th></tr></thead><tbody>';
@@ -1458,7 +1458,7 @@ function buildBudgets(){
     buildBudgets();
   });});
 }
-
+ 
 // ── FACULTY REPORTING ──────────────────────────────────────────────────────
 function buildFacultyReporting(activeTab){
   activeTab=activeTab||'hours';
@@ -1476,10 +1476,10 @@ function buildFacultyReporting(activeTab){
   else if(activeTab==='pubs')buildFRPubs();
   else buildFRGrants();
 }
-
+ 
 function deptOpts(sel){var o='<option value="">Select...</option>';DEPTS.forEach(function(d){o+='<option'+(d===sel?' selected':'')+'>'+d+'</option>';});return o;}
 function qOpts(){var o='';['Q1','Q2','Q3','Q4'].forEach(function(q){o+='<option'+(q===curQ()?' selected':'')+'>'+ q+'</option>';});return o;}
-
+ 
 function buildFRHours(){
   var mine=facultyHours.filter(function(h){return h.facultyName===session.name;}).slice(-8).reverse();
   var h='<div class="form-grid">';
@@ -1528,7 +1528,7 @@ function buildFRHours(){
     buildFRHours();
   });
 }
-
+ 
 function buildFRPubs(){
   var mine=facultyPubs.filter(function(p){return p.facultyName===session.name;}).slice(-5).reverse();
   var statusOpts=''; PUB_STATUSES.forEach(function(s){statusOpts+='<option>'+s+'</option>';});
@@ -1560,7 +1560,7 @@ function buildFRPubs(){
     facultyPubs.push(rec); saveRecord('add',rec,'facultyPublications'); alert('Publication submitted.'); buildFRPubs();
   });
 }
-
+ 
 function buildFRGrants(){
   var mine=facultyGrants.filter(function(g){return g.facultyName===session.name;}).slice(-5).reverse();
   var gtOpts=''; GRANT_TYPES.forEach(function(t){gtOpts+='<option>'+t+'</option>';});
@@ -1594,7 +1594,7 @@ function buildFRGrants(){
     facultyGrants.push(rec); saveRecord('add',rec,'facultyGrants'); alert('Grant submitted.'); buildFRGrants();
   });
 }
-
+ 
 // ── MY PROFILE ─────────────────────────────────────────────────────────────
 function buildMyProfile(){
   var name=session.name;
@@ -1664,7 +1664,7 @@ function buildMyProfile(){
   });
   el('saveProfileBtn').addEventListener('click',saveMyProfile);
 }
-
+ 
 function saveMyProfile(){
   var p=profilesData[session.name]||{skills:[]};
   p.updatedDate=new Date().toISOString().split('T')[0];
@@ -1675,7 +1675,7 @@ function saveMyProfile(){
     el('profileOkBtn').addEventListener('click',closeModal);
   });
 }
-
+ 
 function requestNewSkill(category){
   openModal('<div class="modal-title">Request new skill &mdash; '+category+'</div>' +
     '<p style="font-size:13px;color:#666;margin-bottom:1rem">Suggest a skill to add to the <strong>'+category+'</strong> list. Admin will review before it appears for everyone.</p>' +
@@ -1696,7 +1696,7 @@ function requestNewSkill(category){
     el('reqOkBtn').addEventListener('click',closeModal);
   });
 }
-
+ 
 // ── STAFF SKILLS DIRECTORY ─────────────────────────────────────────────────
 function buildStaffSkills(){
   var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']);
@@ -1732,13 +1732,13 @@ function buildStaffSkills(){
   document.querySelectorAll('[data-approve-skill]').forEach(function(btn){btn.addEventListener('click',function(){approveSkillRequest(this.getAttribute('data-approve-skill'));});});
   document.querySelectorAll('[data-reject-skill]').forEach(function(btn){btn.addEventListener('click',function(){rejectSkillRequest(this.getAttribute('data-reject-skill'));});});
 }
-
+ 
 function refreshSkillGrid(){
   var search=(gv('ssName')||'').toLowerCase();
   var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']).filter(function(n){return !search||n.toLowerCase().indexOf(search)>-1;});
   sh('ssGrid',buildSkillGrid(allStaff));
 }
-
+ 
 function buildSkillGrid(staffList){
   var skill=gv('ssSkill'),level=gv('ssLevel'),cat=gv('ssCat');
   var tax=getAllSkills(), cats=Object.keys(tax);
@@ -1768,7 +1768,7 @@ function buildSkillGrid(staffList){
   h+='</div>';
   return h;
 }
-
+ 
 function approveSkillRequest(id){
   var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
   req.status='approved'; req.reviewedBy=session.name; req.reviewedDate=new Date().toISOString().split('T')[0];
@@ -1781,10 +1781,10 @@ function rejectSkillRequest(id){
   saveRecord('update',req,'skillRequests');
   buildStaffSkills();
 }
-
+ 
 // ── Start ──────────────────────────────────────────────────────────────────
 showLogin();
-
+ 
 </script>
 </body>
 </html>
