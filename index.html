@@ -173,9 +173,9 @@ function canEditImmediate(){return['admin','director','assocdir','staffmgr','fac
 
 let projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[];
 let nextIds={proj:1,hours:1,approvals:1,fhours:1,fpubs:1,fgrants:1};
-let session={role:'public',name:null};
+let session={role:'public',name:null,piEmail:null};
 let currentPage='intake';
-let intakeTeam=[], nextProjId=1, nextHoursId=1;
+let intakeTeam=[];
 
 const ROLE_PAGES={
   public:['pidashboard','intake','mystatus'],
@@ -480,9 +480,11 @@ function doLogin(tab){
   if(tab==='staff'){
     role=val('lr-staff');name=val('ln-staff');code=val('lc-staff');errEl=get('le-staff');
     if(!name){alert('Please select your name.');return;}
-    const expectedCode=role==='staffmgr'?PASSCODES.staffmgr:PASSCODES.staff;
+    // Sitaram is assocdir — accepts admin789 when selecting staff manager
+    const isSitaram=name==='Sitaram Vangala'&&role==='staffmgr';
+    const expectedCode=isSitaram?PASSCODES.admin:(role==='staffmgr'?PASSCODES.staffmgr:PASSCODES.staff);
     if(code!==expectedCode){errEl.style.display='block';return;}
-    if(name==='Sitaram Vangala'&&role==='staffmgr')role='assocdir';
+    if(isSitaram)role='assocdir';
   } else if(tab==='faculty'){
     name=val('ln-faculty');code=val('lc-faculty');errEl=get('le-faculty');
     if(!name){alert('Please select your name.');return;}
