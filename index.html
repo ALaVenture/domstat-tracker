@@ -270,39 +270,42 @@ function submitApproval(reqType,projId,projName,field,oldVal,newVal){
 
 function loadData(manual){
   setSyncStatus("syncing",manual?"Refreshing...":"Connecting...");
-  var p0=fetchSheet("Sheet1");
-  var p1=fetchSheet("hours");
-  var p2=fetchSheet("approvals");
-  var p3=fetchSheet("profiles");
-  var p4=fetchSheet("skillRequests");
-  Promise.all([p0,p1,p2,p3,p4]).then(function(results){
-    var pd=results[0],hd=results[1],ad=results[2],prfd=results[3],srd=results[4];
+  Promise.all([
+    fetchSheet("Sheet1"),
+    fetchSheet("hours"),
+    fetchSheet("approvals"),
+    fetchSheet("profiles"),
+    fetchSheet("skillRequests"),
+    fetchSheet("facultyHours"),
+    fetchSheet("facultyPublications"),
+    fetchSheet("facultyGrants")
+  ]).then(function(results){
+    var pd=results[0],hd=results[1],ad=results[2],prfd=results[3],srd=results[4],fhd=results[5],fpd=results[6],fgd=results[7];
     if(Array.isArray(pd)){
       projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;});
-      if(projects.length)nextIds.proj=Math.max.apply(null,projects.map(function(p){return Number(p.id)||0;})+1);
+      if(projects.length)nextIds.proj=Math.max.apply(null,projects.map(function(p){return Number(p.id)||0;}).concat([0]))+1;
     }
     if(Array.isArray(hd)){
       hoursData=hd.map(rowToHours).filter(function(h){return h.id&&h.projectId;});
-      if(hoursData.length)nextIds.hrs=Math.max.apply(null,hoursData.map(function(h){return Number(h.id)||0;})+1);
+      if(hoursData.length)nextIds.hrs=Math.max.apply(null,hoursData.map(function(h){return Number(h.id)||0;}).concat([0]))+1;
     }
     if(Array.isArray(ad)){
       approvals=ad.map(rowToApproval).filter(function(a){return a.id;});
-      if(approvals.length)nextIds.appr=Math.max.apply(null,approvals.map(function(a){return Number(a.id)||0;})+1);
+      if(approvals.length)nextIds.appr=Math.max.apply(null,approvals.map(function(a){return Number(a.id)||0;}).concat([0]))+1;
     }
     profilesData={};
     if(Array.isArray(prfd))prfd.forEach(function(r){
       if(r.staffName)try{profilesData[r.staffName]={skills:JSON.parse(r.skills||"[]"),updatedDate:r.updatedDate||""};}catch(e){profilesData[r.staffName]={skills:[],updatedDate:""};}
     });
-    skillRequests=[];
-    if(Array.isArray(srd)){skillRequests=srd.filter(function(r){return r.id;});}
-    fetchSheet("facultyHours").then(function(d){if(Array.isArray(d))facultyHours=d.filter(function(r){return r.id;});});
-    fetchSheet("facultyPublications").then(function(d){if(Array.isArray(d))facultyPubs=d.filter(function(r){return r.id;});});
-    fetchSheet("facultyGrants").then(function(d){if(Array.isArray(d))facultyGrants=d.filter(function(r){return r.id;});});
+    if(Array.isArray(srd))skillRequests=srd.filter(function(r){return r.id;});
+    if(Array.isArray(fhd))facultyHours=fhd.filter(function(r){return r.id;});
+    if(Array.isArray(fpd))facultyPubs=fpd.filter(function(r){return r.id;});
+    if(Array.isArray(fgd))facultyGrants=fgd.filter(function(r){return r.id;});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
     renderNav();
     renderPage(currentPage);
-  }).catch(function(e){
+  }).catch(function(err){
     setSyncStatus("err","Connection failed");
     renderNav();
     renderPage(currentPage);
