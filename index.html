@@ -2115,7 +2115,17 @@ function showDetail(id){
 }
 
 // ── Start ─────────────────────────────────────────────────────────────────
-showLogin();
+try {
+  showLogin();
+} catch(e) {
+  document.getElementById('root').innerHTML =
+    '<div style="font-family:sans-serif;padding:2rem;max-width:600px;margin:2rem auto">' +
+    '<h2 style="color:#A32D2D;margin-bottom:1rem">DOMStat — startup error</h2>' +
+    '<pre style="background:#f5f5f5;padding:1rem;border-radius:8px;font-size:12px;white-space:pre-wrap">' +
+    e.message + '\n\n' + e.stack +
+    '</pre><p style="margin-top:1rem;font-size:13px;color:#666">Please copy this error and send to your DOMStat admin.</p>' +
+    '</div>';
+}
 </script>
 </body>
 </html>
