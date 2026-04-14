@@ -113,13 +113,13 @@ const SKILLS={"Methods": ["Regression", "Survival Analysis", "Mixed Models / LME
 const PASSCODES={staff:"staff123",staffmgr:"StaffManager123",faculty:"Faculty123",fund:"fund456",admin:"admin789"};
 const ROLE_PAGES={
   public:["pidashboard","intake","mystatus"],
-  staff:["dashboard","myprojects","loghours","myhours","myprofile","intake"],
-  staffmgr:["dashboard","allprojects","loghours","myhours","myprofile","staffskills","editproject","intake"],
-  faculty:["dashboard","allprojects","facultyreporting","myprofile","staffskills","editproject","intake"],
+  staff:["dashboard","myprojects","editproject","loghours","myhours","myprofile","intake"],
+  staffmgr:["dashboard","allprojects","editproject","loghours","myhours","myprofile","staffskills","intake"],
+  faculty:["dashboard","allprojects","editproject","facultyreporting","myprofile","staffskills","intake"],
   fund:["dashboard","allprojects","billing","fund","staffskills"],
-  admin:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","editproject","intake"],
-  assocdir:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","editproject","intake"],
-  director:["dashboard","allprojects","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","editproject","intake"]
+  admin:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"],
+  assocdir:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"],
+  director:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"]
 };
 const PAGE_LABELS={
   pidashboard:"My Dashboard",dashboard:"Dashboard",myprojects:"My Projects",allprojects:"All Projects",
@@ -488,43 +488,63 @@ function logout() {
 }
 
 // ── Nav / Routing ──────────────────────────────────────────────────────────
-function renderNav() {
-  var pages = (ROLE_PAGES[session.role] || []).filter(function(p) { return p !== 'editproject'; });
-  var pendingAppr = approvals.filter(function(a) { return a.status === 'pending'; }).length;
-  var pendingSkill = skillRequests.filter(function(r) { return r.status === 'pending'; }).length;
+function renderNav(){
+  var NAV_CATS=[
+    {label:"Overview",   color:"#185FA5",bg:"#E6F1FB",border:"#b5d4f4",pages:["availability","dashboard","pidashboard","staffskills","staffview"]},
+    {label:"Projects",   color:"#3B6D11",bg:"#EAF3DE",border:"#a8d470",pages:["allprojects","editproject","intake","myprojects","mystatus"]},
+    {label:"Hours",      color:"#854F0B",bg:"#FAEEDA",border:"#f5c97a",pages:["billing","loghours","myhours"]},
+    {label:"Reporting",  color:"#0F6E56",bg:"#E1F5EE",border:"#5dcaa5",pages:["facultydb","facultyreporting"]},
+    {label:"Management", color:"#3C3489",bg:"#EEEDFE",border:"#afa9ec",pages:["approvals","budgets","fund"]},
+    {label:"Profile",    color:"#5F5E5A",bg:"#F1EFE8",border:"#d3d1c7",pages:["myprofile"]}
+  ];
+  var allowedPages=ROLE_PAGES[session.role]||[];
+  var pendingAppr=approvals.filter(function(a){return a.status==="pending";}).length;
+  var pendingSkill=skillRequests.filter(function(r){return r.status==="pending";}).length;
 
-  var top = '<div class="topbar">';
-  top += '<div style="display:flex;align-items:center;gap:10px">';
-  top += '<span class="logo"><span>DOM</span>Stat Project Tracker</span>';
-  top += roleBadgeHtml();
-  top += '</div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-  if (session.role !== 'public') {
-    top += '<div class="sync-bar"><div class="sync-dot syncing" id="syncDot"></div><span id="syncStatus">Loading...</span></div>';
-    top += '<button class="btn btn-sm" id="refreshBtn">Refresh</button>';
+  var top='<div class="topbar">';
+  top+='<div style="display:flex;align-items:center;gap:10px">';
+  top+='<span class="logo"><span>DOM</span>Stat Project Tracker</span>';
+  top+=roleBadgeHtml();
+  top+='</div><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+  if(session.role!=="public"){
+    top+='<div class="sync-bar"><div class="sync-dot syncing" id="syncDot"></div><span id="syncStatus">Loading...</span></div>';
+    top+='<button class="btn btn-sm" id="refreshBtn">Refresh</button>';
   }
-  top += '<button class="btn btn-sm" id="logoutBtn">Sign out</button>';
-  top += '</div></div>';
+  top+='<button class="btn btn-sm" id="logoutBtn">Sign out</button>';
+  top+='</div></div>';
 
-  var nav = '<div class="nav" id="mainNav">';
-  pages.forEach(function(p) {
-    var lbl = PAGE_LABELS[p] || p;
-    if (p === 'approvals' && pendingAppr > 0) lbl += ' (' + pendingAppr + ')';
-    if (p === 'staffskills' && pendingSkill > 0) lbl += ' (' + pendingSkill + ')';
-    nav += '<button class="nb' + (currentPage === p ? ' active' : '') + '" data-page="' + p + '">' + lbl + '</button>';
+  var nav='<div id="mainNav" style="margin-bottom:1rem">';
+  var firstCat=true;
+  NAV_CATS.forEach(function(cat){
+    var catPages=cat.pages.filter(function(p){return allowedPages.indexOf(p)>-1;});
+    if(!catPages.length)return;
+    if(!firstCat){
+      nav+='<div style="height:1px;background:#e8e8e6;margin:8px 0"></div>';
+    }
+    firstCat=false;
+    nav+='<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">';
+    nav+='<span style="font-size:10px;font-weight:700;color:'+cat.color+';text-transform:uppercase;letter-spacing:.08em;min-width:76px;padding:2px 0;flex-shrink:0">'+cat.label+'</span>';
+    catPages.forEach(function(p){
+      var lbl=PAGE_LABELS[p]||p;
+      if(p==="approvals"&&pendingAppr>0)lbl+=" ("+pendingAppr+")";
+      if(p==="staffskills"&&pendingSkill>0)lbl+=" ("+pendingSkill+")";
+      var isActive=currentPage===p;
+      var btnStyle="padding:5px 13px;font-size:12px;font-weight:"+(isActive?"600":"500")+";border-radius:20px;cursor:pointer;white-space:nowrap;border:1.5px solid "+cat.border+";";
+      btnStyle+=isActive?"background:"+cat.color+";color:#fff;":"background:#fff;color:"+cat.color+";";
+      nav+='<button class="navbtn" style="'+btnStyle+'" data-page="'+p+'">'+lbl+'</button>';
+    });
+    nav+='</div>';
   });
-  nav += '</div>';
+  nav+='</div>';
 
-  sh('root', '<div class="app">' + top + nav + '<div id="pageContainer"></div></div>');
+  sh("root","<div class=\"app\">"+top+nav+"<div id=\"pageContainer\"></div></div>");
 
-  // Attach handlers
-  var navEl = el('mainNav');
-  if (navEl) navEl.querySelectorAll('.nb').forEach(function(btn) {
-    btn.addEventListener('click', function() { renderPage(this.getAttribute('data-page')); });
+  var navEl=el("mainNav");
+  if(navEl)navEl.querySelectorAll(".navbtn").forEach(function(btn){
+    btn.addEventListener("click",function(){renderPage(this.getAttribute("data-page"));});
   });
-  var ref = el('refreshBtn');
-  if (ref) ref.addEventListener('click', function() { loadData(true); });
-  var lo = el('logoutBtn');
-  if (lo) lo.addEventListener('click', logout);
+  var ref=el("refreshBtn");if(ref)ref.addEventListener("click",function(){loadData(true);});
+  var lo=el("logoutBtn");if(lo)lo.addEventListener("click",logout);
 }
 
 function renderPage(p) {
