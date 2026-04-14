@@ -355,6 +355,9 @@ async function saveRecord(action,record,sheet){
 
 // ── Login / session ────────────────────────────────────────────────────────
 function showLogin(){
+  // pre-build dropdowns
+  const staffOpts=STAFF_LIST.map(s=>`<option value="${s}">${s}${STAFF_MANAGERS_LIST.includes(s)?' 📋':''}${s==='Sitaram Vangala'?' 🔶':''}</option>`).join('');
+  const facOpts=['David Elashoff',...FACULTY_ALL].map(s=>`<option value="${s}">${s}${s==='David Elashoff'?' 🔷':''}</option>`).join('');
   set('root',`
   <div class="login-wrap">
     <div class="login-card">
@@ -378,7 +381,7 @@ function showLogin(){
           <label>Your name</label>
           <select id="ln-staff">
             <option value="">Select your name...</option>
-            ${STAFF_LIST.map(s=>`<option value="${s}">${s}${STAFF_MANAGERS_LIST.includes(s)?' 📋':''}${s==='Sitaram Vangala'?' 🔶':''}</option>`).join('')}
+            ${staffOpts}
           </select>
         </div>
         <div class="form-group" style="margin-bottom:12px">
@@ -400,7 +403,7 @@ function showLogin(){
           <label>Your name</label>
           <select id="ln-faculty">
             <option value="">Select your name...</option>
-            ${['David Elashoff',...FACULTY_ALL].map(s=>`<option value="${s}">${s}${s==='David Elashoff'?' 🔷':''}</option>`).join('')}
+            ${facOpts}
           </select>
         </div>
         <div class="form-group" style="margin-bottom:16px">
