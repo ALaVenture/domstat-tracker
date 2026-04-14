@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DOMStat Project Tracker</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#F5F5F3;color:#1a1a1a;font-size:14px}
+.app{max-width:1100px;margin:0 auto;padding:1rem}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;background:#fff;border:1px solid #e5e5e5;border-radius:12px;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+.logo{font-size:15px;font-weight:600}.logo span{color:#185FA5}
+.role-badge{font-size:11px;padding:3px 10px;border-radius:20px;background:#E6F1FB;color:#185FA5;font-weight:500}
+.nav{display:flex;gap:4px;margin-bottom:1rem;flex-wrap:wrap}
+.nav button{padding:7px 16px;font-size:13px;border:1px solid #e5e5e5;border-radius:8px;background:#fff;color:#666;cursor:pointer}
+.nav button.active{background:#E6F1FB;color:#185FA5;border-color:#b5d4f4}
+.nav button:hover{background:#f5f5f5}
+.card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+.card-title{font-size:14px;font-weight:600;margin-bottom:1rem}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:1rem}
+.metric{background:#f5f5f5;border-radius:8px;padding:1rem}
+.metric-label{font-size:12px;color:#666;margin-bottom:4px}
+.metric-value{font-size:22px;font-weight:600}
+.metric-value.blue{color:#185FA5}.metric-value.amber{color:#854F0B}.metric-value.red{color:#A32D2D}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#666;border-bottom:1px solid #e5e5e5;text-transform:uppercase;letter-spacing:.04em}
+td{padding:9px 10px;border-bottom:1px solid #f0f0f0;color:#1a1a1a;vertical-align:top}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafafa}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+.badge.pct{background:#E6F1FB;color:#185FA5}.badge.hr{background:#EAF3DE;color:#3B6D11}.badge.ctsi{background:#FAEEDA;color:#854F0B}
+.badge.active{background:#EAF3DE;color:#3B6D11}.badge.pending{background:#FAEEDA;color:#854F0B}
+.badge.upcoming{background:#E6F1FB;color:#185FA5}.badge.winding{background:#FAECE7;color:#993C1D}
+.badge.lead{background:#EEEDFE;color:#3C3489;font-size:10px;padding:1px 6px}
+.badge.processed{background:#EAF3DE;color:#3B6D11}
+.staff-row{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:8px;background:#f5f5f5;border:1px solid #e5e5e5;margin-bottom:4px}
+.staff-row.is-lead{background:#EEEDFE;border-color:#AFA9EC}
+.staff-name{font-size:12px;font-weight:500;flex:1}
+.pct-note{font-size:11px;color:#534AB7;background:#EEEDFE;padding:2px 7px;border-radius:4px}
+.add-staff-row{display:flex;gap:6px;margin-top:6px;align-items:center;flex-wrap:wrap}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.form-group{display:flex;flex-direction:column;gap:4px}
+.form-group.full{grid-column:1/-1}
+label{font-size:12px;color:#555;font-weight:500}
+input,select,textarea{font-size:13px;padding:7px 10px;border:1px solid #ccc;border-radius:8px;background:#fff;color:#1a1a1a;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:#185FA5;box-shadow:0 0 0 3px rgba(24,95,165,.1)}
+textarea{resize:vertical;min-height:60px}
+.form-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;flex-wrap:wrap}
+.btn{padding:8px 18px;font-size:13px;border:1px solid #ccc;border-radius:8px;cursor:pointer;background:#fff;color:#1a1a1a}
+.btn:hover{background:#f5f5f5}
+.btn.primary{background:#185FA5;color:#fff;border-color:#185FA5}
+.btn.primary:hover{background:#0c447c}
+.btn.sm{padding:5px 12px;font-size:12px}
+.btn.danger{background:#fff;color:#A32D2D;border-color:#A32D2D}
+.section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem}
+.filter-row select{width:auto;font-size:12px;padding:5px 8px}
+.timeline-bar{height:8px;border-radius:4px;background:#e5e5e5;position:relative;width:80px}
+.timeline-fill{height:8px;border-radius:4px;position:absolute;left:0;top:0}
+.alert{padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:8px;border-left:3px solid transparent}
+.alert.warning{background:#FAEEDA;color:#854F0B;border-left-color:#EF9F27}
+.alert.info{background:#E6F1FB;color:#185FA5;border-left-color:#378ADD}
+.alert.success{background:#EAF3DE;color:#3B6D11;border-left-color:#639922}
+.alert.danger{background:#FCEBEB;color:#A32D2D;border-left-color:#E24B4A}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:1000;align-items:flex-start;justify-content:center;padding-top:40px;overflow-y:auto}
+.modal-overlay.open{display:flex}
+.modal{background:#fff;border-radius:12px;border:1px solid #e5e5e5;padding:1.5rem;width:480px;max-width:95vw;margin-bottom:40px}
+.modal.wide{width:640px}
+.modal-title{font-size:15px;font-weight:600;margin-bottom:1rem}
+.initials{width:26px;height:26px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#185FA5;flex-shrink:0}
+.sync-bar{display:flex;align-items:center;gap:8px;font-size:12px;color:#666}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:#639922;flex-shrink:0}
+.sync-dot.syncing{background:#EF9F27}
+.sync-dot.error{background:#E24B4A}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{display:inline-block;width:18px;height:18px;border:2px solid #e5e5e5;border-top-color:#185FA5;border-radius:50%;animation:spin .7s linear infinite}
+.empty{text-align:center;padding:2.5rem;color:#888;font-size:13px}
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:#F5F5F3;padding:1rem}
+.login-card{background:#fff;border:1px solid #e5e5e5;border-radius:16px;padding:2rem;width:420px;max-width:100%}
+.login-logo{font-size:20px;font-weight:600;margin-bottom:4px}.login-logo span{color:#185FA5}
+.login-sub{font-size:13px;color:#888;margin-bottom:1.5rem}
+.login-tabs{display:flex;gap:4px;margin-bottom:1.5rem;background:#f5f5f5;padding:4px;border-radius:10px}
+.login-tab{flex:1;padding:8px;font-size:13px;border:none;border-radius:8px;cursor:pointer;background:transparent;color:#666;font-weight:500}
+.login-tab.active{background:#fff;color:#185FA5;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.login-divider{text-align:center;font-size:12px;color:#aaa;margin:1rem 0;position:relative}
+.login-divider::before,.login-divider::after{content:'';position:absolute;top:50%;width:42%;height:1px;background:#e5e5e5}
+.login-divider::before{left:0}.login-divider::after{right:0}
+.status-pill{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:3px 10px;border-radius:20px}
+.status-pill.pending{background:#FAEEDA;color:#854F0B}
+.status-pill.processed{background:#EAF3DE;color:#3B6D11}
+.status-pill.active{background:#EAF3DE;color:#3B6D11}
+.status-pill.upcoming{background:#E6F1FB;color:#185FA5}
+@media(max-width:600px){
+  .metrics{grid-template-columns:1fr 1fr}
+  .form-grid{grid-template-columns:1fr}
+  .form-group.full{grid-column:1}
+}
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnOverlay(event)">
+  <div class="modal wide" id="modalContent"></div>
+</div>
+
+<script>
+const API = 'https://script.google.com/macros/s/AKfycbzLPg-RAInmqxrFx3JfxVU04Bx5ZdnWgTTjWUhMlQvji_fRT-Lt1CoOiesGfLc4VSEd/exec';
+
+const PASSCODES = { staff:'staff123', fund:'fund456', admin:'admin789' };
+
+const STAFF_LIST = ['Angelique Rubio','Angshuman Saha','Arseniy Vasilyev','Chris Castle','Claudia Perez','Daniela Markovic','Dennis Ruenger','Eric Demer','Estefania Sanchez Salas','Holly Wilhalme','Jenny Brook','Jinhui Liu','Josh Lee','Keren Chen','Lillian Chen','Lucia Chen','Mei Leng','Paige Smith','Rebecca Chung','Rong Guo','Sitaram Vangala','Tahmineh Romero','Tristan Grogan','Tristan Tibbe','Victoria Adebambo','Yash Motwani'];
+
+let projects = [];
+let session = { role: 'public', name: null };
+let currentPage = 'intake';
+let intakeTeam = [];
+let nextId = 1;
+
+const PAGES = {
+  public:  ['intake','mystatus'],
+  staff:   ['dashboard','myprojects','intake'],
+  fund:    ['dashboard','allprojects','fund'],
+  admin:   ['dashboard','allprojects','intake','fund','staffview']
+};
+const PAGE_LABELS = {
+  dashboard:'Dashboard', myprojects:'My Projects', allprojects:'All Projects',
+  intake:'Submit Project', fund:'Fund Manager Queue', staffview:'Staff Overview', mystatus:'My Submissions'
+};
+
+function setSyncStatus(state,msg){
+  const dot=document.getElementById('syncDot');
+  const txt=document.getElementById('syncStatus');
+  if(!dot||!txt)return;
+  dot.className='sync-dot'+(state==='syncing'?' syncing':state==='error'?' error':'');
+  txt.textContent=msg;
+}
+
+function parseTeam(raw){if(!raw||raw==='')return[];try{return JSON.parse(raw);}catch(e){return[];}}
+
+function rowToProject(r){
+  return{
+    id:String(r.id||''),pi:r.pi||'',project:r.project||'',type:r.type||'hr',
+    grant:r.grant||'',start:r.start||'',end:r.end||'',
+    totalValue:(r.totalValue!==''&&r.totalValue!==undefined&&r.totalValue!==null)?Number(r.totalValue):null,
+    fundsReceived:(r.fundsReceived!==''&&r.fundsReceived!==undefined&&r.fundsReceived!==null)?Number(r.fundsReceived):null,
+    status:r.status||'active',fundManagerStatus:r.fundManagerStatus||'pending',
+    notes:r.notes||'',submittedBy:r.submittedBy||'',submittedDate:r.submittedDate||'',
+    lead:r.lead||'',team:parseTeam(r.team)
+  };
+}
+
+function projectToRow(p){
+  return{
+    id:p.id,pi:p.pi,project:p.project,type:p.type,grant:p.grant||'',
+    start:p.start,end:p.end,
+    totalValue:p.totalValue!==null&&p.totalValue!==undefined?p.totalValue:'',
+    fundsReceived:p.fundsReceived!==null&&p.fundsReceived!==undefined?p.fundsReceived:'',
+    status:p.status,fundManagerStatus:p.fundManagerStatus,
+    notes:p.notes||'',submittedBy:p.submittedBy,submittedDate:p.submittedDate,
+    lead:p.lead||((p.team||[]).find(m=>m.lead)||{name:''}).name,
+    team:JSON.stringify(p.team||[])
+  };
+}
+
+async function loadData(manual){
+  setSyncStatus('syncing',manual?'Refreshing...':'Connecting...');
+  try{
+    const res=await fetch(API+'?t='+Date.now());
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    if(Array.isArray(data)){
+      projects=data.map(rowToProject).filter(p=>p.id&&p.project);
+      nextId=projects.length?Math.max(...projects.map(p=>Number(p.id)||0))+1:1;
+      setSyncStatus('ok',(manual?'Refreshed — ':'Connected — ')+projects.length+' project'+(projects.length!==1?'s':''));
+      setTimeout(()=>setSyncStatus('ok','Live — Google Sheets'),3000);
+    }else{projects=[];setSyncStatus('ok','Connected — sheet is empty');}
+  }catch(e){
+    setSyncStatus('error','Connection failed — check setup');
+  }
+  renderNav();
+  renderPage(currentPage);
+}
+
+async function saveRecord(action,record){
+  setSyncStatus('syncing','Saving...');
+  try{
+    await fetch(API,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},body:JSON.stringify({action,record:projectToRow(record)})});
+    setSyncStatus('ok','Saved to Google Sheets');
+    setTimeout(()=>setSyncStatus('ok','Live — Google Sheets'),2000);
+    return true;
+  }catch(e){setSyncStatus('error','Save failed');return false;}
+}
+
+function typeLabel(t){return{pct:'% Effort',hr:'Hourly Recharge',ctsi:'CTSI'}[t]||t}
+function typeClass(t){return{pct:'pct',hr:'hr',ctsi:'ctsi'}[t]||''}
+function statusClass(s){return{active:'active',pending:'pending',upcoming:'upcoming',winding:'winding'}[s]||''}
+function statusLabel(s){return{active:'Active',pending:'Pending',upcoming:'Upcoming',winding:'Winding Down'}[s]||s}
+function fmtDate(d){if(!d)return'—';try{const dt=new Date(d);return isNaN(dt)?d:dt.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});}catch(e){return d;}}
+function fmtMoney(n){return(n===null||n===undefined||n==='')?'—':'$'+Number(n).toLocaleString();}
+function daysLeft(end){return Math.ceil((new Date(end)-new Date())/86400000);}
+function progressPct(s,e){const n=new Date(),st=new Date(s),en=new Date(e);if(n<st)return 0;if(n>en)return 100;return Math.round((n-st)/(en-st)*100);}
+function initials(name){const p=(name||'').trim().split(' ');return((p[0]||'?')[0]+(p[p.length-1]||'?')[0]).toUpperCase();}
+function getlead(p){return(p.team||[]).find(m=>m.lead)||(p.team||[])[0]||{name:p.lead||'—'};}
+function set(id,html){const el=document.getElementById(id);if(el)el.innerHTML=html;}
+function openModal(html,wide){
+  const mc=document.getElementById('modalContent');
+  mc.className='modal'+(wide?' wide':'');
+  mc.innerHTML=html;
+  document.getElementById('modalOverlay').classList.add('open');
+}
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+function closeModalOnOverlay(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
+
+function renderTeamPills(p){
+  return(p.team||[]).map(m=>`
+    <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">
+      <div class="initials">${initials(m.name)}</div>
+      <span style="font-size:12px">${(m.name||'').split(' ')[0]} ${(m.name||'').split(' ').pop()}</span>
+      ${m.lead?`<span class="badge lead">Lead</span>`:''}
+      ${p.type==='pct'&&m.pct?`<span class="pct-note">${m.pct}%</span>`:''}
+    </div>`).join('');
+}
+
+function buildProjectRows(list,clickable){
+  if(!list.length)return`<tr><td colspan="8" class="empty">No projects to display</td></tr>`;
+  return list.map(p=>`<tr ${clickable?`style="cursor:pointer" onclick="showDetail('${p.id}')"`:''}>
+    <td style="font-weight:600">${p.project}</td>
+    <td style="font-size:12px;color:#666">${p.pi}</td>
+    <td><span class="badge ${typeClass(p.type)}">${typeLabel(p.type)}</span></td>
+    <td>${renderTeamPills(p)}</td>
+    <td style="font-size:12px;color:#666">${fmtDate(p.start)} → ${fmtDate(p.end)}</td>
+    <td><span class="badge ${statusClass(p.status)}">${statusLabel(p.status)}</span></td>
+    <td><div class="timeline-bar"><div class="timeline-fill" style="width:${progressPct(p.start,p.end)}%;background:${p.status==='winding'?'#EF9F27':p.status==='active'?'#639922':'#378ADD'}"></div></div></td>
+  </tr>`).join('');
+}
+
+function renderNav(){
+  const pages=PAGES[session.role]||[];
+  const navHtml=pages.map(p=>`<button onclick="renderPage('${p}')" class="${currentPage===p?'active':''}">${PAGE_LABELS[p]}</button>`).join('');
+  const syncHtml=`<div class="sync-bar"><div class="sync-dot syncing" id="syncDot"></div><span id="syncStatus">Loading...</span></div>`;
+  const userHtml=session.name?`<span style="font-size:12px;color:#666">Signed in as <strong>${session.name}</strong></span>`:'';
+  const logoutHtml=`<button class="btn sm" onclick="logout()">Sign out</button>`;
+  const refreshHtml=`<button class="btn sm" onclick="loadData(true)">Refresh</button>`;
+  set('root',`
+    <div class="app">
+      <div class="topbar">
+        <div style="display:flex;align-items:center;gap:12px">
+          <span class="logo"><span>DOM</span>Stat Project Tracker</span>
+          <span class="role-badge" id="roleBadge">${getRoleLabel()}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          ${session.role!=='public'?syncHtml:''}
+          ${userHtml}
+          ${session.role!=='public'?refreshHtml:''}
+          ${logoutHtml}
+        </div>
+      </div>
+      <div class="nav">${navHtml}</div>
+      <div id="pageContainer"></div>
+    </div>`);
+}
+
+function getRoleLabel(){
+  if(session.role==='public')return'Public — Submit a project';
+  if(session.role==='staff')return'Staff — '+( session.name||'');
+  if(session.role==='fund')return'Fund Manager';
+  if(session.role==='admin')return'Admin / Faculty';
+  return '';
+}
+
+function renderPage(p){
+  if(!PAGES[session.role].includes(p)) p=PAGES[session.role][0];
+  currentPage=p;
+  renderNav();
+  ({
+    dashboard:buildDashboard,
+    myprojects:buildMyProjects,
+    allprojects:buildAllProjects,
+    intake:buildIntake,
+    fund:buildFund,
+    staffview:buildStaffOverview,
+    mystatus:buildMyStatus
+  }[p]||buildIntake)();
+}
+
+function logout(){
+  session={role:'public',name:null};
+  currentPage='intake';
+  showLogin();
+}
+
+function showLogin(){
+  set('root',`
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-logo"><span>DOM</span>Stat Project Tracker</div>
+        <div class="login-sub">Department of Medicine Statistics — UCLA</div>
+        <div class="login-tabs">
+          <button class="login-tab active" id="tab-public" onclick="switchLoginTab('public')">Submit a project</button>
+          <button class="login-tab" id="tab-staff" onclick="switchLoginTab('staff')">Staff / Admin</button>
+        </div>
+        <div id="loginPublicPanel">
+          <p style="font-size:13px;color:#555;margin-bottom:1.25rem;line-height:1.6">Use this form to submit a new project collaboration with DOMStat. You'll be able to track the status of your submission after submitting.</p>
+          <button class="btn primary" style="width:100%" onclick="enterAsPublic()">Continue to intake form</button>
+        </div>
+        <div id="loginStaffPanel" style="display:none">
+          <div class="form-group" style="margin-bottom:12px">
+            <label>Access level</label>
+            <select id="loginRole">
+              <option value="staff">Staff member</option>
+              <option value="fund">Fund Manager</option>
+              <option value="admin">Admin / Faculty</option>
+            </select>
+          </div>
+          <div class="form-group" id="staffNameGroup" style="margin-bottom:12px">
+            <label>Your name</label>
+            <select id="loginName">
+              <option value="">Select your name...</option>
+              ${STAFF_LIST.map(s=>`<option value="${s}">${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:16px">
+            <label>Passcode</label>
+            <input type="password" id="loginPasscode" placeholder="Enter your passcode" onkeydown="if(event.key==='Enter')doLogin()">
+          </div>
+          <div id="loginError" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode. Please try again.</div>
+          <button class="btn primary" style="width:100%" onclick="doLogin()">Sign in</button>
+        </div>
+      </div>
+    </div>`);
+  document.getElementById('loginRole').addEventListener('change',function(){
+    document.getElementById('staffNameGroup').style.display=this.value==='staff'?'flex':'none';
+  });
+}
+
+function switchLoginTab(tab){
+  document.getElementById('tab-public').className='login-tab'+(tab==='public'?' active':'');
+  document.getElementById('tab-staff').className='login-tab'+(tab==='staff'?' active':'');
+  document.getElementById('loginPublicPanel').style.display=tab==='public'?'block':'none';
+  document.getElementById('loginStaffPanel').style.display=tab==='staff'?'block':'none';
+}
+
+function enterAsPublic(){
+  session={role:'public',name:null};
+  currentPage='intake';
+  renderNav();
+  renderPage('intake');
+}
+
+function doLogin(){
+  const role=document.getElementById('loginRole').value;
+  const code=document.getElementById('loginPasscode').value;
+  const name=document.getElementById('loginName')?document.getElementById('loginName').value:'';
+  const err=document.getElementById('loginError');
+  if(code!==PASSCODES[role]){err.style.display='block';return;}
+  if(role==='staff'&&!name){alert('Please select your name.');return;}
+  err.style.display='none';
+  session={role,name:role==='staff'?name:(role==='fund'?'Fund Manager':'Admin')};
+  currentPage=PAGES[role][0];
+  loadData(false);
+}
+
+function buildDashboard(){
+  const myP = session.role==='staff'
+    ? projects.filter(p=>(p.team||[]).some(m=>m.name===session.name))
+    : projects;
+  const active=myP.filter(p=>p.status==='active').length;
+  const upcoming=myP.filter(p=>p.status==='upcoming').length;
+  const winding=myP.filter(p=>p.status==='winding').length;
+  const canSeeFunds=session.role==='fund'||session.role==='admin';
+  const outstanding=canSeeFunds?projects.filter(p=>p.type==='pct').reduce((a,p)=>a+Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0)),0):null;
+  const alerts=[];
+  myP.filter(p=>p.status==='winding').forEach(p=>{const d=daysLeft(p.end);if(d<90)alerts.push({t:'warning',m:`<strong>${p.project}</strong> (${p.pi}) winds down in ${d} days — lead: ${getlead(p).name}`});});
+  myP.filter(p=>p.status==='upcoming').forEach(p=>alerts.push({t:'info',m:`<strong>${p.project}</strong> starts ${fmtDate(p.start)} — lead: ${getlead(p).name}`}));
+  if(canSeeFunds) projects.filter(p=>p.fundManagerStatus==='pending').forEach(p=>alerts.push({t:'warning',m:`Pending processing: <strong>${p.project}</strong> — submitted by ${p.submittedBy}`}));
+  set('pageContainer',`
+  <div class="metrics">
+    <div class="metric"><div class="metric-label">${session.role==='staff'?'My active':'Active'} projects</div><div class="metric-value blue">${active}</div></div>
+    <div class="metric"><div class="metric-label">Upcoming</div><div class="metric-value">${upcoming}</div></div>
+    <div class="metric"><div class="metric-label">Winding down</div><div class="metric-value amber">${winding}</div></div>
+    ${canSeeFunds?`<div class="metric"><div class="metric-label">Outstanding funds</div><div class="metric-value red">${fmtMoney(outstanding)}</div></div>`:`<div class="metric"><div class="metric-label">Total projects</div><div class="metric-value">${myP.length}</div></div>`}
+  </div>
+  ${alerts.length?`<div class="card"><div class="card-title">Alerts &amp; action items</div>${alerts.map(a=>`<div class="alert ${a.t}">${a.m}</div>`).join('')}</div>`:''}
+  <div class="card">
+    <div class="section-header"><span class="card-title" style="margin:0">${session.role==='staff'?'My projects':'All projects'} (${myP.length})</span></div>
+    ${!myP.length?`<div class="empty">No projects to display yet.</div>`:
+    `<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Team</th><th>Period</th><th>Status</th><th>Progress</th></tr></thead>
+    <tbody>${buildProjectRows(myP,true)}</tbody></table></div>`}
+  </div>`);
+}
+
+function buildMyProjects(){
+  const myP=projects.filter(p=>(p.team||[]).some(m=>m.name===session.name));
+  const sharedProjects=myP.filter(p=>(p.team||[]).length>1);
+  set('pageContainer',`
+  <div class="card">
+    <div class="section-header"><span class="card-title" style="margin:0">My projects — ${session.name}</span></div>
+    ${!myP.length?`<div class="empty">You are not assigned to any projects yet.</div>`:
+    `<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>My role</th><th>Team</th><th>Period</th><th>Status</th><th>Progress</th></tr></thead><tbody>
+    ${myP.map(p=>{
+      const me=(p.team||[]).find(m=>m.name===session.name);
+      return`<tr style="cursor:pointer" onclick="showDetail('${p.id}')">
+        <td style="font-weight:600">${p.project}</td>
+        <td style="font-size:12px;color:#666">${p.pi}</td>
+        <td><span class="badge ${typeClass(p.type)}">${typeLabel(p.type)}</span></td>
+        <td>
+          ${me&&me.lead?`<span class="badge lead">Lead</span>`:`<span style="font-size:12px;color:#666">Supporting</span>`}
+          ${p.type==='pct'&&me&&me.pct?`<span class="pct-note" style="margin-left:4px">${me.pct}%</span>`:''}
+        </td>
+        <td>${renderTeamPills(p)}</td>
+        <td style="font-size:12px;color:#666">${fmtDate(p.start)} → ${fmtDate(p.end)}</td>
+        <td><span class="badge ${statusClass(p.status)}">${statusLabel(p.status)}</span></td>
+        <td><div class="timeline-bar"><div class="timeline-fill" style="width:${progressPct(p.start,p.end)}%;background:${p.status==='winding'?'#EF9F27':p.status==='active'?'#639922':'#378ADD'}"></div></div></td>
+      </tr>`;}).join('')}
+    </tbody></table></div>`}
+    ${sharedProjects.length?`
+    <div style="margin-top:1.5rem">
+      <div class="card-title">Teammates on my projects</div>
+      ${[...new Set(sharedProjects.flatMap(p=>(p.team||[]).filter(m=>m.name!==session.name).map(m=>m.name)))].map(name=>{
+        const shared=sharedProjects.filter(p=>(p.team||[]).some(m=>m.name===name));
+        return`<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">
+          <div class="initials">${initials(name)}</div>
+          <div>
+            <div style="font-size:13px;font-weight:500">${name}</div>
+            <div style="font-size:12px;color:#888">${shared.map(p=>p.project).join(', ')}</div>
+          </div>
+        </div>`;}).join('')}
+    </div>`:''}
+  </div>`);
+}
+
+function buildAllProjects(){
+  set('pageContainer',`
+  <div class="card">
+    <div class="section-header">
+      <span class="card-title" style="margin:0">All projects (${projects.length})</span>
+      ${session.role==='admin'?`<button class="btn primary" onclick="renderPage('intake')">+ Submit new project</button>`:''}
+    </div>
+    <div class="filter-row">
+      <select id="fType" onchange="applyAllFilters()"><option value="">All types</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select>
+      <select id="fStatus" onchange="applyAllFilters()"><option value="">All statuses</option><option value="active">Active</option><option value="upcoming">Upcoming</option><option value="winding">Winding Down</option></select>
+      <select id="fStaff" onchange="applyAllFilters()"><option value="">All staff</option>${STAFF_LIST.map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
+      <select id="fLead" onchange="applyAllFilters()"><option value="">Any role</option><option value="lead">Leads only</option></select>
+    </div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Team &amp; lead</th><th>Grant / %</th><th>Period</th><th>Funds</th><th>Status</th></tr></thead>
+    <tbody id="allProjectsBody">${buildAllProjectRows(projects)}</tbody></table></div>
+  </div>`);
+}
+
+function buildAllProjectRows(list){
+  if(!list.length)return`<tr><td colspan="8" class="empty">No projects match filters</td></tr>`;
+  return list.map(p=>`<tr style="cursor:pointer" onclick="showDetail('${p.id}')">
+    <td style="font-weight:600">${p.project}</td>
+    <td style="font-size:12px;color:#666">${p.pi}</td>
+    <td><span class="badge ${typeClass(p.type)}">${typeLabel(p.type)}</span></td>
+    <td>${renderTeamPills(p)}</td>
+    <td style="font-size:12px">${p.type==='pct'?(p.team||[]).map(m=>m.pct?m.name.split(' ').pop()+': '+m.pct+'%':'').filter(Boolean).join(', '):(p.grant||'—')}</td>
+    <td style="font-size:12px;color:#666">${fmtDate(p.start)} → ${fmtDate(p.end)}</td>
+    <td style="font-size:12px">${p.type==='pct'?`<span style="color:${(Number(p.fundsReceived)||0)>0?'#3B6D11':'#A32D2D'}">${fmtMoney(p.fundsReceived)} / ${fmtMoney(p.totalValue)}</span>`:'—'}</td>
+    <td><span class="badge ${statusClass(p.status)}">${statusLabel(p.status)}</span></td>
+  </tr>`).join('');
+}
+
+function applyAllFilters(){
+  const type=document.getElementById('fType').value;
+  const status=document.getElementById('fStatus').value;
+  const staff=document.getElementById('fStaff').value;
+  const leadOnly=document.getElementById('fLead').value==='lead';
+  const f=projects.filter(p=>(!type||p.type===type)&&(!status||p.status===status)&&(!staff||(p.team||[]).some(m=>m.name===staff&&(!leadOnly||m.lead))));
+  set('allProjectsBody',buildAllProjectRows(f));
+}
+
+function buildIntake(){
+  intakeTeam=[];
+  const isPublic=session.role==='public';
+  set('pageContainer',`
+  <div class="card">
+    <div class="card-title">Submit a new project collaboration</div>
+    <p style="font-size:13px;color:#666;margin-bottom:1.25rem;line-height:1.6">
+      ${isPublic?'Please complete all fields below. A DOMStat team member will follow up to confirm the collaboration. Fields marked * are required.':'Complete all fields so the fund manager can process this agreement without follow-up. Fields marked * are required.'}
+    </p>
+    <div class="form-grid">
+      <div class="form-group"><label>Your name / submitting on behalf of *</label><input id="f_submitter" type="text" placeholder="Dr. Jane Smith"></div>
+      <div class="form-group"><label>Your email</label><input id="f_email" type="email" placeholder="jsmith@mednet.ucla.edu"></div>
+      <div class="form-group"><label>PI name *</label><input id="f_pi" type="text" placeholder="Principal Investigator name"></div>
+      <div class="form-group"><label>PI institution / department</label><input id="f_pidept" type="text" placeholder="UCLA Neurology"></div>
+      <div class="form-group full"><label>Project / grant title *</label><input id="f_project" type="text" placeholder="Full project title"></div>
+      <div class="form-group"><label>Grant / award number</label><input id="f_grant" type="text" placeholder="R01AI123456"></div>
+      <div class="form-group"><label>Collaboration type *</label>
+        <select id="f_type" onchange="toggleTypeFields()">
+          <option value="">Select type...</option>
+          <option value="pct">% Effort (budgeted on grant)</option>
+          <option value="hr">Hourly Recharge</option>
+          <option value="ctsi">CTSI</option>
+        </select>
+      </div>
+      <div class="form-group" id="f_val_group" style="display:none"><label>Total dollar value *</label><input id="f_val" type="number" placeholder="e.g. 25000"></div>
+      <div class="form-group" id="f_pay_group" style="display:none"><label>Payment structure</label>
+        <select id="f_pay"><option value="">Select...</option><option value="lump">Lump sum upfront</option><option value="annual">Annual each fiscal year</option><option value="other">Other</option></select>
+      </div>
+      ${!isPublic?`
+      <div class="form-group full">
+        <label>Team assignment * <span style="font-size:11px;font-weight:400;color:#888">— first person added is Lead; click "Set as lead" to change</span></label>
+        <div id="teamBuilder" style="margin-bottom:6px"><div style="font-size:12px;color:#888;padding:8px">No team members added yet.</div></div>
+        <div class="add-staff-row">
+          <select id="addStaffSelect" style="flex:1;min-width:180px"><option value="">Select staff to add...</option>${STAFF_LIST.map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
+          <div id="pct_per_staff_wrap" style="display:none"><input id="addStaffPct" type="number" min="1" max="100" placeholder="%" style="width:70px"></div>
+          <button class="btn sm" onclick="addTeamMember()">Add</button>
+        </div>
+        <div id="teamError" style="font-size:12px;color:#A32D2D;margin-top:4px;display:none">Please add at least one staff member.</div>
+      </div>`:''}
+      <div class="form-group"><label>Requested start date *</label><input id="f_start" type="date"></div>
+      <div class="form-group"><label>Expected end date *</label><input id="f_end" type="date"></div>
+      <div class="form-group full"><label>Notes / additional information</label><textarea id="f_notes" placeholder="${isPublic?'Describe what statistical support is needed...':'Any additional context for the fund manager...'}"></textarea></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn primary" id="submitBtn" onclick="submitProject()">Submit</button>
+    </div>
+  </div>`);
+}
+
+function toggleTypeFields(){
+  const t=document.getElementById('f_type').value;
+  document.getElementById('f_val_group').style.display=t==='pct'?'flex':'none';
+  document.getElementById('f_pay_group').style.display=t==='pct'?'flex':'none';
+  const pw=document.getElementById('pct_per_staff_wrap');
+  if(pw)pw.style.display=t==='pct'?'block':'none';
+  renderTeamBuilder();
+}
+
+function addTeamMember(){
+  const sel=document.getElementById('addStaffSelect');
+  const name=sel.value;if(!name)return;
+  if(intakeTeam.find(m=>m.name===name)){alert('Already added.');return;}
+  const t=document.getElementById('f_type')?document.getElementById('f_type').value:'';
+  const pct=t==='pct'?(parseInt((document.getElementById('addStaffPct')||{}).value)||null):null;
+  intakeTeam.push({name,pct,lead:intakeTeam.length===0});
+  sel.value='';
+  const pe=document.getElementById('addStaffPct');if(pe)pe.value='';
+  renderTeamBuilder();
+}
+
+function removeTeamMember(name){
+  intakeTeam=intakeTeam.filter(m=>m.name!==name);
+  if(intakeTeam.length&&!intakeTeam.some(m=>m.lead))intakeTeam[0].lead=true;
+  renderTeamBuilder();
+}
+
+function setLead(name){intakeTeam.forEach(m=>m.lead=m.name===name);renderTeamBuilder();}
+
+function renderTeamBuilder(){
+  const t=document.getElementById('f_type')?document.getElementById('f_type').value:'';
+  const el=document.getElementById('teamBuilder');if(!el)return;
+  if(!intakeTeam.length){el.innerHTML=`<div style="font-size:12px;color:#888;padding:8px">No team members added yet.</div>`;return;}
+  el.innerHTML=intakeTeam.map(m=>`
+    <div class="staff-row ${m.lead?'is-lead':''}">
+      <div class="initials">${initials(m.name)}</div>
+      <span class="staff-name">${m.name}</span>
+      ${m.lead?`<span class="badge lead">Lead</span>`:`<button class="btn sm" style="font-size:11px;padding:2px 8px" onclick="setLead('${m.name}')">Set as lead</button>`}
+      ${t==='pct'?`<span class="pct-note">${m.pct?m.pct+'%':'—%'}</span>`:''}
+      ${!m.lead?`<button class="btn sm danger" style="font-size:11px;padding:2px 8px;margin-left:auto" onclick="removeTeamMember('${m.name}')">Remove</button>`:''}
+    </div>`).join('');
+}
+
+async function submitProject(){
+  const g=id=>document.getElementById(id);
+  const submitter=(g('f_submitter')||{}).value.trim();
+  const pi=(g('f_pi')||{}).value.trim();
+  const proj=(g('f_project')||{}).value.trim();
+  const type=(g('f_type')||{}).value;
+  const start=(g('f_start')||{}).value;
+  const end=(g('f_end')||{}).value;
+  const isPublic=session.role==='public';
+  if(!submitter||!pi||!proj||!type||!start||!end){alert('Please fill in all required fields (*).');return;}
+  if(!isPublic&&!intakeTeam.length){const te=g('teamError');if(te)te.style.display='block';return;}
+  const btn=g('submitBtn');if(btn){btn.disabled=true;btn.textContent='Submitting...';}
+  const record={
+    id:String(nextId++),pi,project:proj,type,
+    grant:(g('f_grant')||{}).value||'',start,end,
+    totalValue:type==='pct'?(parseInt((g('f_val')||{}).value)||null):null,
+    fundsReceived:0,
+    status:new Date(start)>new Date()?'upcoming':'active',
+    notes:(g('f_notes')||{}).value||'',
+    submittedBy:submitter,
+    submittedDate:new Date().toISOString().split('T')[0],
+    fundManagerStatus:'pending',
+    lead:isPublic?'':(intakeTeam.find(m=>m.lead)||{name:''}).name,
+    team:isPublic?[]:intakeTeam
+  };
+  projects.push(record);
+  const ok=await saveRecord('add',record);
+  if(btn){btn.disabled=false;btn.textContent='Submit';}
+  openModal(`
+    <div class="modal-title">Submission received</div>
+    <div class="alert success" style="margin-bottom:1rem">
+      ${ok?'Your project has been submitted and saved successfully.':'Submitted locally — connection to Google Sheets could not be confirmed.'}
+    </div>
+    <p style="font-size:13px;color:#666;margin-bottom:6px"><strong>Project:</strong> ${proj}</p>
+    <p style="font-size:13px;color:#666;margin-bottom:6px"><strong>PI:</strong> ${pi}</p>
+    <p style="font-size:13px;color:#666;margin-bottom:1rem"><strong>Submitted by:</strong> ${submitter}</p>
+    ${isPublic?`<p style="font-size:13px;color:#666;margin-bottom:1rem">A DOMStat team member will follow up to confirm the collaboration. You can track the status of this submission using the <strong>My Submissions</strong> tab.</p>`:''}
+    <div class="form-actions">
+      ${isPublic?`<button class="btn primary" onclick="closeModal();renderPage('mystatus')">Track my submission</button>`:''}
+      <button class="btn ${isPublic?'':'primary'}" onclick="closeModal();renderPage('intake')">Submit another</button>
+    </div>`);
+}
+
+function buildMyStatus(){
+  const name=(session.name||'').toLowerCase();
+  const mine=projects.filter(p=>p.submittedBy&&p.submittedBy.toLowerCase().includes(name||'___never___'));
+  set('pageContainer',`
+  <div class="card">
+    <div class="card-title">My submissions</div>
+    <p style="font-size:13px;color:#666;margin-bottom:1rem">Showing submissions where you are listed as the submitter.</p>
+    ${!mine.length?`<div class="empty">No submissions found. If you just submitted, try refreshing the page in a moment.</div>`:
+    `<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Submitted</th><th>Start date</th><th>Processing status</th></tr></thead><tbody>
+    ${mine.map(p=>`<tr>
+      <td style="font-weight:600">${p.project}</td>
+      <td style="font-size:12px;color:#666">${p.pi}</td>
+      <td><span class="badge ${typeClass(p.type)}">${typeLabel(p.type)}</span></td>
+      <td style="font-size:12px;color:#666">${fmtDate(p.submittedDate)}</td>
+      <td style="font-size:12px;color:#666">${fmtDate(p.start)}</td>
+      <td><span class="status-pill ${p.fundManagerStatus==='processed'?'processed':'pending'}">${p.fundManagerStatus==='processed'?'Processed by fund manager':'Pending — awaiting processing'}</span></td>
+    </tr>`).join('')}
+    </tbody></table></div>`}
+  </div>`);
+}
+
+function buildFund(){
+  const pending=projects.filter(p=>p.fundManagerStatus==='pending');
+  const pctP=projects.filter(p=>p.type==='pct');
+  set('pageContainer',`
+  <div class="card">
+    <div class="card-title">Action required — pending (${pending.length})</div>
+    ${!pending.length?`<div class="empty">All caught up — no pending items</div>`:
+    `<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Lead</th><th>Additional staff</th><th>Grant #</th><th>Value</th><th>Start</th><th>Submitted by</th><th>Action</th></tr></thead><tbody>
+    ${pending.map(p=>`<tr>
+      <td style="font-weight:600">${p.project}</td>
+      <td style="font-size:12px;color:#666">${p.pi}</td>
+      <td><span class="badge ${typeClass(p.type)}">${typeLabel(p.type)}</span></td>
+      <td style="font-size:12px;color:#3C3489;font-weight:600">${getlead(p).name||'—'}</td>
+      <td style="font-size:12px">${(p.team||[]).filter(m=>!m.lead).map(m=>m.name.split(' ').pop()).join(', ')||'—'}</td>
+      <td style="font-size:12px">${p.grant||'—'}</td>
+      <td style="font-size:12px">${fmtMoney(p.totalValue)}</td>
+      <td style="font-size:12px">${fmtDate(p.start)}</td>
+      <td style="font-size:12px">${p.submittedBy}</td>
+      <td><button class="btn sm" onclick="markProcessed('${p.id}')">Mark processed</button></td>
+    </tr>`).join('')}
+    </tbody></table></div>`}
+  </div>
+  <div class="card">
+    <div class="card-title">% Effort payment tracker</div>
+    ${!pctP.length?`<div class="empty">No % Effort projects yet</div>`:
+    `<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Lead</th><th>Team &amp; %</th><th>Grant</th><th>Period</th><th>Total</th><th>Received</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>
+    ${pctP.map(p=>`<tr>
+      <td style="font-weight:600;font-size:12px">${p.project}</td>
+      <td style="font-size:11px;color:#666">${p.pi}</td>
+      <td style="font-size:12px;color:#3C3489;font-weight:600">${getlead(p).name.split(' ').pop()}</td>
+      <td style="font-size:11px">${(p.team||[]).map(m=>`${m.name.split(' ').pop()}${m.pct?' ('+m.pct+'%)':''}`).join(', ')}</td>
+      <td style="font-size:11px">${p.grant||'—'}</td>
+      <td style="font-size:11px;color:#666">${fmtDate(p.start)} → ${fmtDate(p.end)}</td>
+      <td style="font-size:12px">${fmtMoney(p.totalValue)}</td>
+      <td style="font-size:12px;color:#3B6D11">${fmtMoney(p.fundsReceived)}</td>
+      <td style="font-size:12px;color:${Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0))>0?'#A32D2D':'#3B6D11'}">${fmtMoney(Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0)))}</td>
+      <td><span class="badge ${p.fundManagerStatus==='processed'?'processed':'pending'}">${p.fundManagerStatus==='processed'?'Processed':'Pending'}</span></td>
+    </tr>`).join('')}
+    </tbody></table></div>`}
+  </div>`);
+}
+
+async function markProcessed(id){
+  const p=projects.find(x=>String(x.id)===String(id));if(!p)return;
+  p.fundManagerStatus='processed';p.fundsReceived=p.totalValue||0;
+  await saveRecord('update',p);renderPage('fund');
+}
+
+function buildStaffOverview(){
+  set('pageContainer',`
+  <div class="card">
+    <div class="card-title">Staff assignments — all staff</div>
+    <div style="overflow-x:auto"><table><thead><tr><th>Staff member</th><th>Leads</th><th>Supporting</th><th>Total % effort</th><th>Types</th><th>Winding down</th><th>Upcoming</th></tr></thead><tbody>
+    ${STAFF_LIST.map(s=>{
+      const leading=projects.filter(p=>(p.team||[]).some(m=>m.name===s&&m.lead));
+      const supporting=projects.filter(p=>(p.team||[]).some(m=>m.name===s&&!m.lead));
+      const all=projects.filter(p=>(p.team||[]).some(m=>m.name===s));
+      const totalPct=all.filter(p=>p.type==='pct').reduce((a,p)=>{const m=(p.team||[]).find(x=>x.name===s);return a+(m&&m.pct?Number(m.pct):0);},0);
+      const types=[...new Set(all.map(p=>p.type))];
+      const wind=all.filter(p=>p.status==='winding');
+      const up=all.filter(p=>p.status==='upcoming');
+      return`<tr>
+        <td style="font-weight:600;font-size:13px"><div style="display:flex;align-items:center;gap:8px"><div class="initials">${initials(s)}</div>${s}</div></td>
+        <td>${leading.length?leading.map(p=>`<div style="font-size:12px;font-weight:600;color:#3C3489">${p.project}</div>`).join(''):'<span style="color:#999;font-size:12px">—</span>'}</td>
+        <td>${supporting.length?supporting.map(p=>`<div style="font-size:12px;color:#666">${p.project}</div>`).join(''):'<span style="color:#999;font-size:12px">—</span>'}</td>
+        <td style="font-size:13px">${totalPct>0?totalPct+'%':'—'}</td>
+        <td>${types.map(t=>`<span class="badge ${typeClass(t)}">${typeLabel(t)}</span>`).join(' ')}</td>
+        <td>${wind.length?wind.map(p=>`<div style="font-size:11px;color:#854F0B">${p.project} → ${fmtDate(p.end)}</div>`).join(''):'<span style="color:#999;font-size:12px">—</span>'}</td>
+        <td>${up.length?up.map(p=>`<div style="font-size:11px;color:#185FA5">${p.project} → ${fmtDate(p.start)}</div>`).join(''):'<span style="color:#999;font-size:12px">—</span>'}</td>
+      </tr>`;}).join('')}
+    </tbody></table></div>
+  </div>`);
+}
+
+function showDetail(id){
+  const p=projects.find(x=>String(x.id)===String(id));if(!p)return;
+  const canSeeFunds=session.role==='fund'||session.role==='admin';
+  openModal(`
+    <div class="modal-title">${p.project}</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-bottom:1rem">
+      <div><span style="color:#666">PI:</span> ${p.pi}</div>
+      <div><span style="color:#666">Type:</span> <span class="badge ${typeClass(p.type)}">${typeLabel(p.type)}</span></div>
+      <div><span style="color:#666">Start:</span> ${fmtDate(p.start)}</div>
+      <div><span style="color:#666">End:</span> ${fmtDate(p.end)}</div>
+      ${p.grant?`<div><span style="color:#666">Grant #:</span> ${p.grant}</div>`:''}
+      ${canSeeFunds&&p.totalValue!==null&&p.totalValue!==''?`<div><span style="color:#666">Total value:</span> ${fmtMoney(p.totalValue)}</div>`:''}
+      ${canSeeFunds&&p.fundsReceived!==null&&p.fundsReceived!==''?`<div><span style="color:#666">Received:</span> <span style="color:${(Number(p.fundsReceived)||0)>0?'#3B6D11':'#A32D2D'}">${fmtMoney(p.fundsReceived)}</span></div>`:''}
+      ${canSeeFunds?`<div><span style="color:#666">FM status:</span> <span class="badge ${p.fundManagerStatus==='processed'?'processed':'pending'}">${p.fundManagerStatus==='processed'?'Processed':'Pending'}</span></div>`:''}
+      <div><span style="color:#666">Submitted by:</span> ${p.submittedBy} on ${fmtDate(p.submittedDate)}</div>
+    </div>
+    <div style="margin-bottom:1rem">
+      <div style="font-size:12px;font-weight:600;color:#666;margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Team</div>
+      ${(p.team||[]).length?((p.team||[]).map(m=>`
+        <div class="staff-row ${m.lead?'is-lead':''}">
+          <div class="initials">${initials(m.name)}</div>
+          <span class="staff-name">${m.name}</span>
+          ${m.lead?`<span class="badge lead">Lead</span>`:''}
+          ${p.type==='pct'&&m.pct?`<span class="pct-note">${m.pct}%</span>`:''}
+        </div>`).join('')):`<div style="font-size:12px;color:#999;padding:8px">Team not yet assigned</div>`}
+    </div>
+    ${p.notes?`<div style="font-size:13px;background:#f5f5f5;padding:10px 12px;border-radius:8px;color:#666;margin-bottom:1rem">${p.notes}</div>`:''}
+    <div class="form-actions">
+      ${session.role==='fund'&&p.fundManagerStatus==='pending'?`<button class="btn primary" onclick="markProcessed('${p.id}');closeModal()">Mark processed</button>`:''}
+      <button class="btn" onclick="closeModal()">Close</button>
+    </div>`,true);
+}
+
+showLogin();
+</script>
+</body>
+</html>
