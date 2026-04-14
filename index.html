@@ -503,15 +503,19 @@ function applyAllFilters(){
 
 // ── LOG HOURS ──────────────────────────────────────────────────────────────
 function buildLogHours(){
-  const staffName=session.role==='admin'?null:session.name;
+  const isAdmin=session.role==='admin';
+  const staffName=isAdmin?null:session.name;
   const myProjects=staffName?projects.filter(p=>(p.team||[]).some(m=>m.name===staffName)):projects;
   const weeks=getFridayWeeks(12);
+  const noProjectsMsg=staffName
+    ?`<div class="alert info">You are not currently assigned to any projects. Contact your admin to be added to a project before logging hours.</div>`
+    :`<div class="empty">Select a staff member above to see their projects.</div>`;
   set('pageContainer',`
   <div class="card">
     <div class="card-title">Log hours</div>
-    <p style="font-size:13px;color:#666;margin-bottom:1.25rem">Select a week-ending Friday and log hours by project and type of service. Hours are calculated automatically using your hourly rate.</p>
+    <p style="font-size:13px;color:#666;margin-bottom:1.25rem">Select a week-ending Friday and log hours by project and type of service. Billing amounts calculate automatically using your hourly rate.</p>
     <div class="form-grid" style="margin-bottom:1rem">
-      ${session.role==='admin'?`<div class="form-group"><label>Staff member *</label>
+      ${isAdmin?`<div class="form-group"><label>Staff member *</label>
         <select id="logStaff" onchange="refreshLogProjects()">
           <option value="">Select staff member...</option>${STAFF_LIST.map(s=>`<option value="${s}">${s}</option>`).join('')}
         </select></div>`:''}
@@ -520,7 +524,7 @@ function buildLogHours(){
       </div>
     </div>
     <div id="logProjectsSection">
-      ${staffName?buildLogProjectRows(myProjects,staffName):`<div class="empty">Select a staff member above to see their projects.</div>`}
+      ${(staffName&&myProjects.length)?buildLogProjectRows(myProjects,staffName):noProjectsMsg}
     </div>
     <div class="form-actions" style="margin-top:1.5rem">
       <button class="btn" onclick="renderPage('myprojects')">Cancel</button>
