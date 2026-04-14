@@ -355,175 +355,151 @@ async function saveRecord(action,record,sheet){
 
 // ── Login / session ────────────────────────────────────────────────────────
 function showLogin(){
-  // pre-build dropdowns
-  const staffOpts=STAFF_LIST.map(s=>`<option value="${s}">${s}${STAFF_MANAGERS_LIST.includes(s)?' 📋':''}${s==='Sitaram Vangala'?' 🔶':''}</option>`).join('');
-  const facOpts=['David Elashoff',...FACULTY_ALL].map(s=>`<option value="${s}">${s}${s==='David Elashoff'?' 🔷':''}</option>`).join('');
-  set('root',`
-  <div class="login-wrap">
-    <div class="login-card">
-      <div class="login-logo"><span>DOM</span>Stat Project Tracker</div>
-      <div class="login-sub">Department of Medicine Statistics — UCLA</div>
-      <div class="login-tabs">
-        <button class="login-tab active" id="lt-public" onclick="switchLoginTab('public')">🔬 Submit / View</button>
-        <button class="login-tab" id="lt-staff" onclick="switchLoginTab('staff')">👤 Staff</button>
-        <button class="login-tab" id="lt-faculty" onclick="switchLoginTab('faculty')">🎓 Faculty</button>
-        <button class="login-tab" id="lt-admin" onclick="switchLoginTab('admin')">🛡️ Admin / FM</button>
-      </div>
-      <div id="lp-public">
-        <p style="font-size:13px;color:#555;margin-bottom:1rem;line-height:1.6">Submit a new project collaboration or view your account.</p>
-        <div style="display:flex;gap:8px;margin-bottom:1rem">
-          <button class="btn primary" style="flex:1" onclick="enterAsPublic('submit')">Submit a project</button>
-          <button class="btn" style="flex:1" onclick="enterAsPublic('view')">View my account</button>
-        </div>
-      </div>
-      <div id="lp-staff" style="display:none">
-        <div class="form-group" style="margin-bottom:12px">
-          <label>Your name</label>
-          <select id="ln-staff">
-            <option value="">Select your name...</option>
-            ${staffOpts}
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:12px">
-          <label>Access level</label>
-          <select id="lr-staff">
-            <option value="staff">👤 Staff</option>
-            <option value="staffmgr">📋 Staff Manager</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:16px">
-          <label>Passcode</label>
-          <input type="password" id="lc-staff" placeholder="Enter passcode" onkeydown="if(event.key==='Enter')doLogin('staff')">
-        </div>
-        <div id="le-staff" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode.</div>
-        <button class="btn primary" style="width:100%" onclick="doLogin('staff')">Sign in</button>
-      </div>
-      <div id="lp-faculty" style="display:none">
-        <div class="form-group" style="margin-bottom:12px">
-          <label>Your name</label>
-          <select id="ln-faculty">
-            <option value="">Select your name...</option>
-            ${facOpts}
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:16px">
-          <label>Passcode</label>
-          <input type="password" id="lc-faculty" placeholder="Enter passcode" onkeydown="if(event.key==='Enter')doLogin('faculty')">
-        </div>
-        <div id="le-faculty" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode.</div>
-        <button class="btn primary" style="width:100%" onclick="doLogin('faculty')">Sign in</button>
-      </div>
-      <div id="lp-admin" style="display:none">
-        <div class="form-group" style="margin-bottom:12px">
-          <label>Access level</label>
-          <select id="lr-admin">
-            <option value="fund">💰 Fund Manager</option>
-            <option value="admin">🛡️ Admin</option>
-          </select>
-        </div>
-        <div class="form-group" style="margin-bottom:16px">
-          <label>Passcode</label>
-          <input type="password" id="lc-admin" placeholder="Enter passcode" onkeydown="if(event.key==='Enter')doLogin('admin')">
-        </div>
-        <div id="le-admin" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode.</div>
-        <button class="btn primary" style="width:100%" onclick="doLogin('admin')">Sign in</button>
-      </div>
-    </div>
-  </div>`);
+  var staffOpts='<option value="">Select your name...</option>';
+  STAFF_LIST.forEach(function(s){
+    var tag='';
+    if(STAFF_MANAGERS_LIST.includes(s))tag=' 📋';
+    if(s==='Sitaram Vangala')tag=' 🔶';
+    staffOpts+='<option value="'+s+'">'+s+tag+'</option>';
+  });
+  var facOpts='<option value="">Select your name...</option>';
+  ['David Elashoff'].concat(FACULTY_ALL).forEach(function(s){
+    var tag=s==='David Elashoff'?' 🔷':'';
+    facOpts+='<option value="'+s+'">'+s+tag+'</option>';
+  });
+  var html='<div class="login-wrap"><div class="login-card">';
+  html+='<div class="login-logo"><span>DOM</span>Stat Project Tracker</div>';
+  html+='<div class="login-sub">Department of Medicine Statistics — UCLA</div>';
+  html+='<div class="login-tabs">';
+  html+='<button class="login-tab active" id="lt-public" onclick="switchLoginTab(\'public\')">🔬 Submit / View</button>';
+  html+='<button class="login-tab" id="lt-staff" onclick="switchLoginTab(\'staff\')">👤 Staff</button>';
+  html+='<button class="login-tab" id="lt-faculty" onclick="switchLoginTab(\'faculty\')">🎓 Faculty</button>';
+  html+='<button class="login-tab" id="lt-admin" onclick="switchLoginTab(\'admin\')">🛡️ Admin / FM</button>';
+  html+='</div>';
+  // Public panel
+  html+='<div id="lp-public">';
+  html+='<p style="font-size:13px;color:#555;margin-bottom:1rem;line-height:1.6">Submit a new project or view your account.</p>';
+  html+='<div style="display:flex;gap:8px;margin-bottom:1rem">';
+  html+='<button class="btn primary" style="flex:1" onclick="enterAsPublic(\'submit\')">Submit a project</button>';
+  html+='<button class="btn" style="flex:1" onclick="enterAsPublic(\'view\')">View my account</button>';
+  html+='</div></div>';
+  // Staff panel
+  html+='<div id="lp-staff" style="display:none">';
+  html+='<div class="form-group" style="margin-bottom:12px"><label>Your name</label>';
+  html+='<select id="ln-staff">'+staffOpts+'</select></div>';
+  html+='<div class="form-group" style="margin-bottom:12px"><label>Access level</label>';
+  html+='<select id="lr-staff"><option value="staff">👤 Staff</option><option value="staffmgr">📋 Staff Manager</option></select></div>';
+  html+='<div class="form-group" style="margin-bottom:16px"><label>Passcode</label>';
+  html+='<input type="password" id="lc-staff" placeholder="Enter passcode"></div>';
+  html+='<div id="le-staff" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode.</div>';
+  html+='<button class="btn primary" style="width:100%" onclick="doLogin(\'staff\')">Sign in</button>';
+  html+='</div>';
+  // Faculty panel
+  html+='<div id="lp-faculty" style="display:none">';
+  html+='<div class="form-group" style="margin-bottom:12px"><label>Your name</label>';
+  html+='<select id="ln-faculty">'+facOpts+'</select></div>';
+  html+='<div class="form-group" style="margin-bottom:16px"><label>Passcode</label>';
+  html+='<input type="password" id="lc-faculty" placeholder="Enter passcode"></div>';
+  html+='<div id="le-faculty" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode.</div>';
+  html+='<button class="btn primary" style="width:100%" onclick="doLogin(\'faculty\')">Sign in</button>';
+  html+='</div>';
+  // Admin panel
+  html+='<div id="lp-admin" style="display:none">';
+  html+='<div class="form-group" style="margin-bottom:12px"><label>Access level</label>';
+  html+='<select id="lr-admin"><option value="fund">💰 Fund Manager</option><option value="admin">🛡️ Admin</option></select></div>';
+  html+='<div class="form-group" style="margin-bottom:16px"><label>Passcode</label>';
+  html+='<input type="password" id="lc-admin" placeholder="Enter passcode"></div>';
+  html+='<div id="le-admin" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Incorrect passcode.</div>';
+  html+='<button class="btn primary" style="width:100%" onclick="doLogin(\'admin\')">Sign in</button>';
+  html+='</div>';
+  html+='</div></div>';
+  set('root', html);
 }
 
-
 function switchLoginTab(tab){
-  ['public','staff','faculty','admin'].forEach(t=>{
-    const btn=get('lt-'+t),panel=get('lp-'+t);
-    if(btn)btn.className='login-tab'+(t===tab?' active':'');
-    if(panel)panel.style.display=t===tab?'block':'none';
+  var tabs=['public','staff','faculty','admin'];
+  tabs.forEach(function(t){
+    var btn=get('lt-'+t), panel=get('lp-'+t);
+    if(btn) btn.className='login-tab'+(t===tab?' active':'');
+    if(panel) panel.style.display=t===tab?'block':'none';
   });
 }
 
 function enterAsPublic(mode){
   if(mode==='view'){
-    set('root',`
-    <div class="login-wrap"><div class="login-card">
-      <div class="login-logo"><span>DOM</span>Stat Project Tracker</div>
-      <div class="login-sub">View your project account</div>
-      <div class="form-group" style="margin-bottom:12px">
-        <label>Your email address (as submitted on your project)</label>
-        <input type="email" id="pi-email" placeholder="your@email.edu">
-      </div>
-      <div class="form-group" style="margin-bottom:16px">
-        <label>Your 4-digit PIN (set when you submitted)</label>
-        <input type="password" id="pi-pin" placeholder="4-digit PIN" maxlength="4" onkeydown="if(event.key==='Enter')doPILogin()">
-      </div>
-      <div id="pi-error" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Email or PIN not found.</div>
-      <button class="btn primary" style="width:100%;margin-bottom:8px" onclick="doPILogin()">View my account</button>
-      <button class="btn" style="width:100%" onclick="showLogin()">Back</button>
-    </div></div>`);
+    var html='<div class="login-wrap"><div class="login-card">';
+    html+='<div class="login-logo"><span>DOM</span>Stat Project Tracker</div>';
+    html+='<div class="login-sub">View your project account</div>';
+    html+='<div class="form-group" style="margin-bottom:12px"><label>Your email address (as submitted)</label>';
+    html+='<input type="email" id="pi-email" placeholder="your@email.edu"></div>';
+    html+='<div class="form-group" style="margin-bottom:16px"><label>Your 4-digit PIN</label>';
+    html+='<input type="password" id="pi-pin" placeholder="4-digit PIN" maxlength="4"></div>';
+    html+='<div id="pi-error" style="font-size:12px;color:#A32D2D;margin-bottom:10px;display:none">Email or PIN not found.</div>';
+    html+='<button class="btn primary" style="width:100%;margin-bottom:8px" onclick="doPILogin()">View my account</button>';
+    html+='<button class="btn" style="width:100%" onclick="showLogin()">Back</button>';
+    html+='</div></div>';
+    set('root', html);
   } else {
     session={role:'public',name:null,piEmail:null};
-    currentPage='intake';renderNav();renderPage('intake');
+    currentPage='intake';
+    renderNav();
+    renderPage('intake');
   }
 }
 
 function doPILogin(){
-  const email=val('pi-email').trim().toLowerCase();
-  const pin=val('pi-pin').trim();
+  var email=val('pi-email').trim().toLowerCase();
+  var pin=val('pi-pin').trim();
   if(!email||!pin){get('pi-error').style.display='block';return;}
-  const match=projects.find(p=>p.piEmail&&p.piEmail.toLowerCase()===email&&String(p.piPin)===String(pin));
+  var match=projects.find(function(p){return p.piEmail&&p.piEmail.toLowerCase()===email&&String(p.piPin)===String(pin);});
   if(!match){get('pi-error').style.display='block';return;}
   session={role:'public',name:match.pi,piEmail:email};
-  currentPage='pidashboard';renderNav();renderPage('pidashboard');
+  currentPage='pidashboard';
+  renderNav();
+  renderPage('pidashboard');
 }
 
 function doLogin(tab){
-  let role,name,code,errEl;
+  var role,name,code,errEl,expectedCode;
   if(tab==='staff'){
-    role=val('lr-staff');name=val('ln-staff');code=val('lc-staff');errEl=get('le-staff');
+    role=val('lr-staff');
+    name=val('ln-staff');
+    code=val('lc-staff');
+    errEl=get('le-staff');
     if(!name){alert('Please select your name.');return;}
-    // Sitaram is assocdir — accepts admin789 when selecting staff manager
-    const isSitaram=name==='Sitaram Vangala'&&role==='staffmgr';
-    const expectedCode=isSitaram?PASSCODES.admin:(role==='staffmgr'?PASSCODES.staffmgr:PASSCODES.staff);
+    var isSitaram=(name==='Sitaram Vangala'&&role==='staffmgr');
+    expectedCode=isSitaram?PASSCODES.admin:(role==='staffmgr'?PASSCODES.staffmgr:PASSCODES.staff);
     if(code!==expectedCode){errEl.style.display='block';return;}
     if(isSitaram)role='assocdir';
   } else if(tab==='faculty'){
-    name=val('ln-faculty');code=val('lc-faculty');errEl=get('le-faculty');
+    name=val('ln-faculty');
+    code=val('lc-faculty');
+    errEl=get('le-faculty');
     if(!name){alert('Please select your name.');return;}
     role=name==='David Elashoff'?'director':(name==='Sitaram Vangala'?'assocdir':'faculty');
-    const expectedCode=(role==='director'||role==='assocdir')?PASSCODES.admin:PASSCODES.faculty;
+    expectedCode=(role==='director'||role==='assocdir')?PASSCODES.admin:PASSCODES.faculty;
     if(code!==expectedCode){errEl.style.display='block';return;}
   } else {
-    role=val('lr-admin');code=val('lc-admin');errEl=get('le-admin');
-    const expectedCode=role==='fund'?PASSCODES.fund:PASSCODES.admin;
+    role=val('lr-admin');
+    code=val('lc-admin');
+    errEl=get('le-admin');
+    expectedCode=role==='fund'?PASSCODES.fund:PASSCODES.admin;
     if(code!==expectedCode){errEl.style.display='block';return;}
     name=role==='fund'?'Fund Manager':'Admin';
   }
   errEl.style.display='none';
-  session={role,name,piEmail:null};
+  session={role:role,name:name,piEmail:null};
   currentPage=ROLE_PAGES[role][0];
   loadData(false);
 }
 
-
-function enterAsPublic(){session={role:'public',name:null};currentPage='intake';renderNav();renderPage('intake');}
-function doLogin(){
-  const role=val('loginRole'),code=val('loginPasscode'),name=val('loginName');
-  const err=get('loginError');
-  if(code!==PASSCODES[role]){err.style.display='block';return;}
-  if(role==='staff'&&!name){alert('Please select your name.');return;}
-  err.style.display='none';
-  session={role,name:role==='staff'?name:(role==='fund'?'Fund Manager':'Admin')};
-  currentPage=ROLE_PAGES[role][0];
-  loadData(false);
-}
-function logout(){session={role:'public',name:null};currentPage='intake';showLogin();}
-function getRoleLabel(){
-  if(session.role==='public')return'Public — Submit a project';
-  if(session.role==='staff')return'Staff — '+session.name;
-  if(session.role==='fund')return'Fund Manager';
-  return'Admin / Faculty';
+function logout(){
+  session={role:'public',name:null,piEmail:null};
+  currentPage='intake';
+  showLogin();
 }
 
-// ── Nav / routing ──────────────────────────────────────────────────────────
+
 function renderNav(){
   const pages=(ROLE_PAGES[session.role]||[]).filter(p=>p!=='editproject');
   const pendingCount=typeof approvals!=='undefined'?approvals.filter(a=>a.status==='pending').length:0;
@@ -2126,6 +2102,10 @@ try {
     '</pre><p style="margin-top:1rem;font-size:13px;color:#666">Please copy this error and send to your DOMStat admin.</p>' +
     '</div>';
 }
+
+
+// ── Start ────────────────────────────────────────────────
+showLogin();
 </script>
 </body>
 </html>
