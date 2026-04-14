@@ -303,12 +303,23 @@ function loadData(manual){
     if(Array.isArray(fgd))facultyGrants=fgd.filter(function(r){return r.id;});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
-    renderNav();
-    renderPage(currentPage);
+    try { renderNav(); } catch(navErr) {
+      console.error('renderNav error:', navErr);
+      document.getElementById('root').innerHTML = '<div style="padding:2rem;font-family:sans-serif"><h3 style="color:#c00">Nav error: '+navErr.message+'</h3></div>';
+      return;
+    }
+    try { renderPage(currentPage); } catch(pageErr) {
+      console.error('renderPage error:', pageErr);
+      var pc = document.getElementById('pageContainer');
+      if(pc) pc.innerHTML = '<div style="padding:1rem;background:#fef;border:1px solid #c00;border-radius:8px;font-family:sans-serif;font-size:13px"><strong>Page error:</strong> '+pageErr.message+'<br><pre style="font-size:11px;margin-top:8px">'+pageErr.stack+'</pre></div>';
+    }
   }).catch(function(err){
-    setSyncStatus("err","Connection failed");
-    renderNav();
-    renderPage(currentPage);
+    setSyncStatus("err","Connection failed: "+err.message);
+    try { renderNav(); } catch(e2) {}
+    try { renderPage(currentPage); } catch(e3) {
+      var pc = document.getElementById('pageContainer');
+      if(pc) pc.innerHTML = '<div style="padding:1rem;color:#c00">Load error: '+err.message+'</div>';
+    }
   });
 }
 
