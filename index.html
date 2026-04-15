@@ -1682,6 +1682,48 @@ function buildBudgets(){
   });});
 }
 
+
+
+
+function buildFund() {
+  var pending=projects.filter(function(p){return p.fundManagerStatus==='pending';});
+  var pctP=projects.filter(function(p){return p.type==='pct';});
+  var h='<div class="card"><div class="card-title">Action required — pending ('+pending.length+')</div>';
+  if(!pending.length)h+='<div class="empty">All caught up</div>';
+  else {
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Grant/FAU</th><th>Value</th><th>Start</th><th>Submitted by</th><th>Action</th></tr></thead><tbody>';
+    pending.forEach(function(p){
+      h+='<tr><td style="font-weight:600">'+p.project+'</td><td style="font-size:12px;color:#666">'+p.pi+(p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'')+'</td>';
+      h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+      h+='<td style="font-size:12px">'+( p.grant||'&mdash;')+(p.fau?'<br><span style="color:#888">FAU: '+p.fau+'</span>':'')+'</td>';
+      h+='<td style="font-size:12px">'+fmtMoney(p.totalValue)+'</td>';
+      h+='<td style="font-size:12px">'+fmtDate(p.start)+'</td>';
+      h+='<td style="font-size:12px">'+p.submittedBy+'</td>';
+      h+='<td><button class="btn btn-sm" data-process="'+p.id+'">Mark processed</button></td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  h+='</div>';
+  if(pctP.length){
+    h+='<div class="card"><div class="card-title">% Effort payment tracker</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Grant/FAU</th><th>Period</th><th>Total value</th><th>Received</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>';
+    pctP.forEach(function(p){
+      var outs=Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0));
+      h+='<tr><td style="font-weight:600;font-size:12px">'+p.project+'</td><td style="font-size:11px;color:#666">'+p.pi+'</td>';
+      h+='<td style="font-size:11px">'+( p.grant||'&mdash;')+(p.fau?'<br>FAU: '+p.fau:'')+'</td>';
+      h+='<td style="font-size:11px;color:#666">'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+'</td>';
+      h+='<td style="font-size:12px">'+fmtMoney(p.totalValue)+'</td>';
+      h+='<td style="font-size:12px;color:#3B6D11">'+fmtMoney(p.fundsReceived)+'</td>';
+      h+='<td style="font-size:12px;color:'+(outs>0?'#A32D2D':'#3B6D11')+'">'+fmtMoney(outs)+'</td>';
+      h+='<td><span class="badge '+(p.fundManagerStatus==='processed'?'badge-processed':'badge-pending')+'">'+(p.fundManagerStatus==='processed'?'Processed':'Pending')+'</span></td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-process]').forEach(function(btn){btn.addEventListener('click',function(){markProcessed(this.getAttribute('data-process'));});});
+}
+
+
 // ── FACULTY REPORTING (rewritten with full edit capability) ────────────────
 function buildFacultyReporting(activeTab) {
   activeTab = activeTab || 'hours';
