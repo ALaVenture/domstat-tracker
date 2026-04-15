@@ -216,6 +216,7 @@ function rowToProject(r){
     fundsReceived:(r.fundsReceived!==""&&r.fundsReceived!=null)?Number(r.fundsReceived):null,
     budgetTarget:(r.budgetTarget!==""&&r.budgetTarget!=null)?Number(r.budgetTarget):null,
     status:r.status||"active",fundManagerStatus:r.fundManagerStatus||"pending",
+    invoiceStatus:r.invoiceStatus||"pending",
     projectStatus:r.projectStatus||"Active Project",
     piEmail:r.piEmail||"",fmName:r.fmName||"",fmEmail:r.fmEmail||"",piPin:r.piPin||"",
     notes:r.notes||"",submittedBy:r.submittedBy||"",submittedDate:r.submittedDate||"",
@@ -226,7 +227,7 @@ function projectToRow(p){
     grant:p.grant||"",fau:p.fau||"",start:p.start||"",end:p.end||"",
     totalValue:p.totalValue!=null?p.totalValue:"",fundsReceived:p.fundsReceived!=null?p.fundsReceived:"",
     budgetTarget:p.budgetTarget!=null?p.budgetTarget:"",status:p.status,
-    fundManagerStatus:p.fundManagerStatus,projectStatus:p.projectStatus||"Active Project",
+    fundManagerStatus:p.fundManagerStatus,invoiceStatus:p.invoiceStatus||"pending",projectStatus:p.projectStatus||"Active Project",
     piEmail:p.piEmail||"",fmName:p.fmName||"",fmEmail:p.fmEmail||"",piPin:p.piPin||"",
     notes:p.notes||"",submittedBy:p.submittedBy,submittedDate:p.submittedDate,
     lead:p.lead||"",team:JSON.stringify(p.team||[])};
@@ -1438,8 +1439,8 @@ function doBillingRender() {
   var aq = document.querySelector('[data-bq].active');
   var q = aq ? aq.getAttribute('data-bq') : curQ();
   var yr = parseInt(document.getElementById('bYear').value) || curYr();
-  var staff = document.getElementById('bStaff').value;
-  var piFilter = document.getElementById('bPI').value;
+  var staff = document.getElementById('bStaff') ? document.getElementById('bStaff').value : '';
+  var piFilter = document.getElementById('bPI') ? document.getElementById('bPI').value : '';
 
   var filtered = hoursData.filter(function(h) {
     if (h.quarter !== q || h.year !== yr) return false;
@@ -1466,7 +1467,7 @@ function doBillingRender() {
     var p = null;
     for (var i = 0; i < projects.length; i++) { if (projects[i].id === h.projectId) { p = projects[i]; break; } }
     if (!p) return;
-    if (!byPI[p.pi]) byPI[p.pi] = { piEmail: p.piEmail || '', fmName: p.fmName || '', fmEmail: p.fmEmail || '', projects: {} };
+    if (!byPI[p.pi]) byPI[p.pi] = { piEmail: p.piEmail||'', fmName: p.fmName||'', fmEmail: p.fmEmail||'', projects: {} };
     if (!byPI[p.pi].piEmail && p.piEmail) byPI[p.pi].piEmail = p.piEmail;
     if (!byPI[p.pi].projects[p.id]) byPI[p.pi].projects[p.id] = { proj: p, hours: 0, billing: 0, bySvc: {} };
     byPI[p.pi].projects[p.id].hours += h.hours;
@@ -1483,47 +1484,73 @@ function doBillingRender() {
 
   Object.keys(byPI).sort().forEach(function(piName) {
     var pd = byPI[piName];
-    var piTotalHrs = 0, piTotalBill = 0;
-    Object.keys(pd.projects).forEach(function(pid) { piTotalHrs += pd.projects[pid].hours; piTotalBill += pd.projects[pid].billing; });
+    var piTotalHrs = 0, piTotalBill = 0, piOutstanding = 0;
+    Object.keys(pd.projects).forEach(function(pid) {
+      piTotalHrs += pd.projects[pid].hours;
+      piTotalBill += pd.projects[pid].billing;
+      var p = pd.projects[pid].proj;
+      var received = Number(p.fundsReceived) || 0;
+      piOutstanding += Math.max(0, projBill(p.id) - received);
+    });
 
     html += '<div style="border:1px solid #e5e5e5;border-radius:10px;margin-bottom:12px;overflow:hidden">';
-    // PI header row
+    // PI header
     html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f9f9f9;border-bottom:1px solid #e5e5e5;flex-wrap:wrap;gap:8px">';
     html += '<div><span style="font-weight:700;font-size:14px">' + piName + '</span>';
     html += '<span style="font-size:12px;color:#888;margin-left:12px">' + Object.keys(pd.projects).length + ' project' + (Object.keys(pd.projects).length !== 1 ? 's' : '') + '</span></div>';
     html += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
     html += '<span style="font-size:13px"><strong>' + fmtHrs(piTotalHrs) + ' hrs</strong></span>';
     html += '<span style="font-size:14px;font-weight:700;color:#3B6D11">' + fmtMoney(piTotalBill) + '</span>';
-    if (pd.piEmail) {
-      html += '<span style="font-size:11px;color:#3B6D11">' + pd.piEmail + '</span>';
-    } else {
-      html += '<span style="font-size:11px;color:#A32D2D;font-style:italic">No email on file</span>';
-    }
-    // Invoice button with PI name stored as data attribute
-    html += '<button class="btn btn-sm btn-success billing-invoice-btn" data-pi="' + piName.replace(/"/g, '&quot;') + '" data-email="' + (pd.piEmail || '') + '">Send invoice</button>';
+    if (piOutstanding > 0) html += '<span style="font-size:12px;font-weight:700;color:#A32D2D">Outstanding: ' + fmtMoney(piOutstanding) + '</span>';
+    if (pd.piEmail) html += '<span style="font-size:11px;color:#555">' + pd.piEmail + '</span>';
+    else html += '<span style="font-size:11px;color:#A32D2D;font-style:italic">No email on file</span>';
+    html += '<button class="btn btn-sm btn-success billing-invoice-btn" data-pi="' + piName.replace(/"/g, '&quot;') + '" data-email="' + (pd.piEmail||'') + '">Send invoice</button>';
     html += '</div></div>';
 
     // Projects under this PI
     Object.keys(pd.projects).forEach(function(pid) {
       var pd2 = pd.projects[pid];
       var p = pd2.proj;
-      var rem = p.budgetTarget ? (p.budgetTarget - projBill(p.id)) : null;
-      html += '<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">';
+      var totalBilled = projBill(p.id);
+      var received = Number(p.fundsReceived) || 0;
+      var outstanding = Math.max(0, totalBilled - received);
+      var invStatus = p.invoiceStatus || 'pending';
+      var invColors = {pending:'#888',sent:'#854F0B',paid:'#3B6D11',processed:'#3B6D11'};
+      var invBgs = {pending:'#f5f5f5',sent:'#FAEEDA',paid:'#EAF3DE',processed:'#EAF3DE'};
+      var invLabels = {pending:'Not invoiced',sent:'Invoice sent',paid:'Paid',processed:'Processed'};
+
+      html += '<div style="padding:12px 16px;border-bottom:1px solid #f5f5f5">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
       html += '<div>';
       html += '<span style="font-weight:600;font-size:13px">' + p.project + '</span>';
       html += '<span class="' + typeBadge(p.type) + '" style="margin-left:8px">' + typeLabel(p.type) + '</span>';
       if (p.grant) html += '<span style="font-size:11px;color:#888;margin-left:8px">Grant: ' + p.grant + '</span>';
       if (p.fau) html += '<span style="font-size:11px;color:#888;margin-left:8px">FAU: ' + p.fau + '</span>';
       html += '</div>';
-      html += '<div style="text-align:right"><span style="font-weight:600;color:#3B6D11">' + fmtMoney(pd2.billing) + '</span>';
-      if (rem !== null) html += '<br><span style="font-size:11px;color:' + (rem < 0 ? '#A32D2D' : '#888') + '">Remaining: ' + fmtMoney(rem) + '</span>';
+      html += '<div style="text-align:right">';
+      html += '<div style="font-weight:600;color:#3B6D11">' + fmtMoney(pd2.billing) + ' billed</div>';
+      if (outstanding > 0) html += '<div style="font-size:12px;font-weight:700;color:#A32D2D">Outstanding: ' + fmtMoney(outstanding) + '</div>';
+      else if (received > 0) html += '<div style="font-size:12px;color:#3B6D11">&#10003; Paid: ' + fmtMoney(received) + '</div>';
       html += '</div></div>';
       // Service breakdown
-      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">';
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">';
       Object.keys(pd2.bySvc).forEach(function(svc) {
         html += '<span style="font-size:11px;background:#f0f0f0;padding:2px 8px;border-radius:12px;color:#666">' + svc + ': ' + fmtHrs(pd2.bySvc[svc]) + ' hrs</span>';
       });
+      html += '</div>';
+      // Invoice status row
+      html += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      html += '<span style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.04em">Invoice status:</span>';
+      html += '<span style="font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600;background:' + invBgs[invStatus] + ';color:' + invColors[invStatus] + '">' + invLabels[invStatus] + '</span>';
+      if (invStatus !== 'processed') {
+        html += '<div style="display:flex;gap:6px">';
+        if (invStatus === 'pending') html += '<button class="btn btn-sm" style="font-size:11px" data-set-invoice-status="' + pid + '" data-status="sent">Mark invoice sent</button>';
+        if (invStatus === 'sent') html += '<button class="btn btn-sm btn-approve" style="font-size:11px" data-set-invoice-status="' + pid + '" data-status="paid">Mark paid</button>';
+        if (invStatus === 'paid') html += '<button class="btn btn-sm btn-success" style="font-size:11px" data-set-invoice-status="' + pid + '" data-status="processed">&#10003; Mark processed</button>';
+        html += '</div>';
+      } else {
+        html += '<span style="font-size:11px;color:#3B6D11">&#10003; Complete — removed from queue</span>';
+      }
       html += '</div></div>';
     });
     html += '</div>';
@@ -1531,16 +1558,30 @@ function doBillingRender() {
 
   sh('billingContent', html);
 
-  // Attach invoice buttons AFTER content is rendered
-  var btns = document.querySelectorAll('.billing-invoice-btn');
-  btns.forEach(function(btn) {
+  // Attach invoice buttons
+  document.querySelectorAll('.billing-invoice-btn').forEach(function(btn) {
     btn.addEventListener('click', function() {
-      var piName = this.getAttribute('data-pi');
-      var piEmail = this.getAttribute('data-email');
-      sendInvoiceForPI(piName, piEmail);
+      sendInvoiceForPI(this.getAttribute('data-pi'), this.getAttribute('data-email'));
+    });
+  });
+  // Attach status change buttons
+  document.querySelectorAll('[data-set-invoice-status]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var pid = this.getAttribute('data-set-invoice-status');
+      var newStatus = this.getAttribute('data-status');
+      var p = projects.filter(function(x) { return x.id === pid; })[0];
+      if (!p) return;
+      p.invoiceStatus = newStatus;
+      if (newStatus === 'processed') {
+        p.fundManagerStatus = 'processed';
+        p.fundsReceived = projBill(p.id);
+      }
+      saveRecord('update', projectToRow(p), 'Sheet1');
+      doBillingRender();
     });
   });
 }
+
 
 function sendInvoiceForPI(piName, piEmail) {
   var piProjects = projects.filter(function(p) { return p.pi === piName; });
