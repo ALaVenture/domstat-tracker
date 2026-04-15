@@ -1407,27 +1407,24 @@ function renderBillingTable(q, yr) {
   var filtered = hoursData.filter(function(h){ return h.quarter===q && h.year===yr && (!staff||h.staffName===staff); });
   if (pi) { var pids=projects.filter(function(p){return p.pi===pi;}).map(function(p){return p.id;}); filtered=filtered.filter(function(h){return pids.indexOf(h.projectId)>-1;}); }
   var tH=filtered.reduce(function(a,h){return a+h.hours;},0), tB=filtered.reduce(function(a,h){return a+h.billingAmount;},0);
-  var byProj={};
-  filtered.forEach(function(h){if(!byProj[h.projectId])byProj[h.projectId]={hours:0,billing:0,staff:{}}; byProj[h.projectId].hours+=h.hours; byProj[h.projectId].billing+=h.billingAmount; byProj[h.projectId].staff[h.staffName]=1;});
   if (!filtered.length) { sh('billingContent','<div class="empty">No hours for '+q+' '+yr+' matching these filters.</div>'); return; }
+  // Build byProj map for buildBilProjectView
+  var byProj={};
+  filtered.forEach(function(h){
+    if(!byProj[h.projectId])byProj[h.projectId]={hours:0,billing:0};
+    byProj[h.projectId].hours+=h.hours;
+    byProj[h.projectId].billing+=h.billingAmount;
+  });
+  var piCount = {};
+  Object.keys(byProj).forEach(function(pid){ var p=projects.filter(function(x){return x.id===pid;})[0]; if(p&&!piCount[p.pi])piCount[p.pi]=1; });
   var h = '<div class="metrics" style="margin-bottom:1rem">';
   h += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-blue">'+fmtHrs(tH)+'</div></div>';
-  h += '<div class="metric"><div class="metric-label">Total billing</div><div class="metric-value mv-green">'+fmtMoney(tB)+'</div></div>';
-  h += '<div class="metric"><div class="metric-label">Projects billed</div><div class="metric-value mv-purple">'+Object.keys(byProj).length+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">Total billed</div><div class="metric-value mv-green">'+fmtMoney(tB)+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">PIs billed</div><div class="metric-value mv-purple">'+Object.keys(piCount).length+'</div></div>';
   h += '<div class="metric"><div class="metric-label">% Effort</div><div class="metric-value mv-amber">'+(tH/520*100).toFixed(1)+'%</div></div></div>';
-  h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Hours</th><th>Billed</th><th>Budget remaining</th><th>Action</th></tr></thead><tbody>';
-  Object.keys(byProj).forEach(function(pid){
-    var p=projects.filter(function(x){return x.id===pid;})[0]; if(!p)return;
-    var allB=projBill(p.id), rem=p.budgetTarget?(p.budgetTarget-allB):null;
-    h+='<tr><td style="font-weight:600;font-size:12px">'+p.project+'</td><td style="font-size:12px;color:#666">'+p.pi+'</td>';
-    h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
-    h+='<td style="font-weight:500">'+fmtHrs(byProj[pid].hours)+'</td>';
-    h+='<td style="color:#3B6D11;font-weight:500">'+fmtMoney(byProj[pid].billing)+'</td>';
-    h+='<td style="font-size:12px'+(rem!==null&&rem<0?';color:#A32D2D':'')+'">'+( rem!==null?fmtMoney(rem):'&mdash;')+'</td>';
-    h+='<td><button class="btn btn-sm" data-invoice-pi="'+encodeURIComponent(p.pi)+'|'+(p.piEmail||'')+'">Send invoice to PI</button></td></tr>';
-  });
-  h += '</tbody></table></div>';
+  h += buildBilProjectView(byProj);
   sh('billingContent', h);
+  // Attach invoice listeners
   document.querySelectorAll('[data-invoice-pi]').forEach(function(btn){
     btn.addEventListener('click',function(){
       var parts=decodeURIComponent(this.getAttribute('data-invoice-pi')).split('|');
@@ -1435,6 +1432,7 @@ function renderBillingTable(q, yr) {
     });
   });
 }
+
 
 function sendInvoice(pid) {
   // Find the PI for this project, then invoice ALL their projects together
