@@ -1424,30 +1424,127 @@ function renderBillingTable(q, yr) {
     h+='<td style="font-weight:500">'+fmtHrs(byProj[pid].hours)+'</td>';
     h+='<td style="color:#3B6D11;font-weight:500">'+fmtMoney(byProj[pid].billing)+'</td>';
     h+='<td style="font-size:12px'+(rem!==null&&rem<0?';color:#A32D2D':'')+'">'+( rem!==null?fmtMoney(rem):'&mdash;')+'</td>';
-    h+='<td><button class="btn btn-sm" data-invoice="'+pid+'">Send invoice</button></td></tr>';
+    h+='<td><button class="btn btn-sm" data-invoice-pi="'+encodeURIComponent(p.pi)+'|'+(p.piEmail||'')+'">Send invoice to PI</button></td></tr>';
   });
   h += '</tbody></table></div>';
   sh('billingContent', h);
-  document.querySelectorAll('[data-invoice]').forEach(function(btn){btn.addEventListener('click',function(){sendInvoice(this.getAttribute('data-invoice'));});});
+  document.querySelectorAll('[data-invoice-pi]').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      var parts=decodeURIComponent(this.getAttribute('data-invoice-pi')).split('|');
+      sendInvoiceForPI(parts[0], parts[1]||'');
+    });
+  });
 }
 
 function sendInvoice(pid) {
-  var p=projects.filter(function(x){return x.id===pid;})[0]; if(!p)return;
-  var ph=hoursData.filter(function(h){return h.projectId===pid;});
-  var tH=ph.reduce(function(a,h){return a+h.hours;},0), tB=ph.reduce(function(a,h){return a+h.billingAmount;},0);
-  var bySvc={}; ph.forEach(function(h){if(!bySvc[h.serviceType])bySvc[h.serviceType]={hrs:0,bill:0}; bySvc[h.serviceType].hrs+=h.hours; bySvc[h.serviceType].bill+=h.billingAmount;});
-  var byQ={}; ph.forEach(function(h){var k=h.quarter+' '+h.year; if(!byQ[k])byQ[k]={hrs:0,bill:0}; byQ[k].hrs+=h.hours; byQ[k].bill+=h.billingAmount;});
-  function fmt(n){return n.toLocaleString('en-US',{style:'currency',currency:'USD'});}
-  var svcLines=Object.keys(bySvc).map(function(svc){return '  '+svc.padEnd(28,' ')+' '+bySvc[svc].hrs.toFixed(1).padStart(6,' ')+' hrs   '+fmt(bySvc[svc].bill);}).join('\n');
-  var qLines=Object.keys(byQ).map(function(q){return '  '+q.padEnd(28,' ')+' '+byQ[q].hrs.toFixed(1).padStart(6,' ')+' hrs   '+fmt(byQ[q].bill);}).join('\n');
-  var today=new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
-  var body=encodeURIComponent(
-'UCLA DEPARTMENT OF MEDICINE STATISTICS\nDOMStat Statistical Consulting Services\nInvoice Date: '+today+'\n'+'='.repeat(55)+'\n\nBILL TO\nPrincipal Investigator: '+p.pi+'\nDepartment:             '+(p.department||'N/A')+'\nProject / Grant Title:  '+p.project+'\nGrant Number:           '+(p.grant||'N/A')+'\nFAU:                    '+(p.fau||'N/A')+'\n\n'+'='.repeat(55)+'\nCHARGES BY SERVICE TYPE\n'+'-'.repeat(55)+'\n  Service                          Hours       Amount\n'+'-'.repeat(55)+'\n'+svcLines+'\n'+'-'.repeat(55)+'\n  TOTAL                        '+tH.toFixed(1).padStart(6,' ')+' hrs   '+fmt(tB)+'\n'+'='.repeat(55)+'\n\nCHARGES BY PERIOD\n'+'-'.repeat(55)+'\n'+qLines+'\n'+'='.repeat(55)+'\n\nBUDGET SUMMARY\n  Budget Target:    '+(p.budgetTarget?fmt(p.budgetTarget):'Not set')+'\n  Total Billed:     '+fmt(tB)+'\n  Remaining:        '+(p.budgetTarget?fmt(p.budgetTarget-tB):'N/A')+'\n\n'+'='.repeat(55)+'\nPAYMENT INSTRUCTIONS\nPlease remit payment via FAU: '+(p.fau||'[FAU to be provided]')+'\n\nQuestions? Contact: '+(p.fmName||'DOMStat Fund Manager')+' '+(p.fmEmail||'')+'\n\nDOMStat -- UCLA Department of Medicine Statistics\nhttps://alaventure.github.io/domstat-tracker\n'+'='.repeat(55));
-  var subject=encodeURIComponent('DOMStat Invoice -- '+p.project+' -- '+today);
-  window.location.href='mailto:'+(p.piEmail||'')+'?subject='+subject+'&body='+body;
+  // Find the PI for this project, then invoice ALL their projects together
+  var triggerProj = projects.filter(function(x) { return x.id === pid; })[0];
+  if (!triggerProj) return;
+  sendInvoiceForPI(triggerProj.pi, triggerProj.piEmail);
 }
 
-// ── FUND MANAGER QUEUE ─────────────────────────────────────────────────────
+function sendInvoiceForPI(piName, piEmail) {
+  // Get all projects for this PI
+  var piProjects = projects.filter(function(p) { return p.pi === piName; });
+  if (!piProjects.length) return;
+
+  // Use first project's FM info and PI email if not passed directly
+  var fmName = '', fmEmail = '', fau = '', piEmailFinal = piEmail || '';
+  piProjects.forEach(function(p) {
+    if (!fmName && p.fmName) fmName = p.fmName;
+    if (!fmEmail && p.fmEmail) fmEmail = p.fmEmail;
+    if (!piEmailFinal && p.piEmail) piEmailFinal = p.piEmail;
+  });
+
+  var today = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+  function fmt(n) { return n.toLocaleString('en-US', {style:'currency', currency:'USD'}); }
+  function pad(s, len) { s = String(s); while (s.length < len) s += ' '; return s; }
+
+  var grandTotalHrs = 0, grandTotalBill = 0;
+  var projectSections = [];
+
+  piProjects.forEach(function(p) {
+    var ph = hoursData.filter(function(h) { return h.projectId === p.id; });
+    if (!ph.length) return; // skip projects with no hours
+
+    var tH = ph.reduce(function(a,h) { return a+h.hours; }, 0);
+    var tB = ph.reduce(function(a,h) { return a+h.billingAmount; }, 0);
+    grandTotalHrs += tH;
+    grandTotalBill += tB;
+
+    // By service type
+    var bySvc = {};
+    ph.forEach(function(h) {
+      if (!bySvc[h.serviceType]) bySvc[h.serviceType] = {hrs:0, bill:0};
+      bySvc[h.serviceType].hrs += h.hours;
+      bySvc[h.serviceType].bill += h.billingAmount;
+    });
+
+    // By quarter
+    var byQ = {};
+    ph.forEach(function(h) {
+      var k = h.quarter + ' ' + h.year;
+      if (!byQ[k]) byQ[k] = {hrs:0, bill:0};
+      byQ[k].hrs += h.hours;
+      byQ[k].bill += h.billingAmount;
+    });
+
+    var section = '';
+    section += '\nProject: ' + p.project + '\n';
+    section += 'Grant #: ' + (p.grant || 'N/A') + '   FAU: ' + (p.fau || 'N/A') + '\n';
+    section += '-'.repeat(55) + '\n';
+    section += pad('Service type', 28) + pad('Hours', 8) + 'Amount\n';
+    section += '-'.repeat(55) + '\n';
+    Object.keys(bySvc).forEach(function(svc) {
+      section += pad(svc, 28) + pad(bySvc[svc].hrs.toFixed(1), 8) + fmt(bySvc[svc].bill) + '\n';
+    });
+    section += '-'.repeat(55) + '\n';
+    section += pad('Project subtotal', 28) + pad(tH.toFixed(1), 8) + fmt(tB) + '\n';
+    if (p.budgetTarget) {
+      section += pad('Budget target', 28) + ' '.repeat(8) + fmt(p.budgetTarget) + '\n';
+      section += pad('Remaining budget', 28) + ' '.repeat(8) + fmt(p.budgetTarget - tB) + '\n';
+    }
+
+    projectSections.push(section);
+  });
+
+  if (!projectSections.length) {
+    alert('No hours have been logged for any of ' + piName + '\'s projects yet.');
+    return;
+  }
+
+  var body = 'UCLA DEPARTMENT OF MEDICINE STATISTICS\n';
+  body += 'DOMStat Statistical Consulting Services\n';
+  body += 'Invoice Date: ' + today + '\n';
+  body += '='.repeat(55) + '\n\n';
+  body += 'BILL TO\n';
+  body += 'Principal Investigator: ' + piName + '\n';
+  body += 'Projects invoiced: ' + projectSections.length + '\n\n';
+  body += '='.repeat(55) + '\n';
+  body += 'ITEMIZED CHARGES BY PROJECT\n';
+  body += '='.repeat(55) + '\n';
+  body += projectSections.join('\n');
+  body += '\n' + '='.repeat(55) + '\n';
+  body += 'INVOICE TOTAL\n';
+  body += '-'.repeat(55) + '\n';
+  body += pad('Total hours', 28) + pad(grandTotalHrs.toFixed(1), 8) + '\n';
+  body += pad('TOTAL AMOUNT DUE', 28) + ' '.repeat(8) + fmt(grandTotalBill) + '\n';
+  body += '='.repeat(55) + '\n\n';
+  body += 'PAYMENT INSTRUCTIONS\n';
+  body += 'Please remit payment to UCLA Department of Medicine Statistics.\n';
+  if (fau) body += 'FAU: ' + fau + '\n';
+  body += '\nQuestions? Contact:\n';
+  body += (fmName || 'DOMStat Fund Manager') + '\n';
+  if (fmEmail) body += fmEmail + '\n';
+  body += '\nDOMStat - UCLA Department of Medicine Statistics\n';
+  body += 'https://alaventure.github.io/domstat-tracker\n';
+  body += '='.repeat(55) + '\n';
+
+  var subject = encodeURIComponent('DOMStat Invoice — ' + piName + ' — ' + today);
+  window.location.href = 'mailto:' + piEmailFinal + '?subject=' + subject + '&body=' + encodeURIComponent(body);
+}
+
+
 function buildFund() {
   var pending=projects.filter(function(p){return p.fundManagerStatus==='pending';});
   var pctP=projects.filter(function(p){return p.type==='pct';});
@@ -2615,6 +2712,55 @@ function renderFDBGrants() {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 showLogin();
+function buildBilProjectView(byProj) {
+  if (!Object.keys(byProj).length) return '<div class="empty">No data</div>';
+
+  // Group projects by PI
+  var byPI = {};
+  Object.keys(byProj).forEach(function(pid) {
+    var p = projects.filter(function(x) { return x.id === pid; })[0];
+    if (!p) return;
+    if (!byPI[p.pi]) byPI[p.pi] = {projects:[], hours:0, billing:0, piEmail:p.piEmail||'', fmName:p.fmName||'', fmEmail:p.fmEmail||''};
+    byPI[p.pi].projects.push({p:p, d:byProj[pid]});
+    byPI[p.pi].hours += byProj[pid].hours;
+    byPI[p.pi].billing += byProj[pid].billing;
+    if (!byPI[p.pi].piEmail && p.piEmail) byPI[p.pi].piEmail = p.piEmail;
+  });
+
+  var h = '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>PI</th><th>Projects</th><th>Total hours</th><th>Total billed</th><th>PI email</th><th>Action</th>';
+  h += '</tr></thead><tbody>';
+
+  Object.keys(byPI).sort().forEach(function(pi) {
+    var piData = byPI[pi];
+    h += '<tr>';
+    h += '<td style="font-weight:600">' + pi + '</td>';
+    h += '<td style="font-size:12px">';
+    piData.projects.forEach(function(entry) {
+      var p = entry.p, d = entry.d;
+      var allBilled = projBill(p.id);
+      var rem = p.budgetTarget ? (p.budgetTarget - allBilled) : null;
+      h += '<div style="padding:4px 0;border-bottom:1px solid #f5f5f5">';
+      h += '<span style="font-weight:500">' + p.project + '</span>';
+      h += '<span class="' + typeBadge(p.type) + '" style="margin-left:6px">' + typeLabel(p.type) + '</span>';
+      if (p.grant) h += '<span style="font-size:11px;color:#888;margin-left:6px">Grant: ' + p.grant + '</span>';
+      if (p.fau) h += '<span style="font-size:11px;color:#888;margin-left:6px">FAU: ' + p.fau + '</span>';
+      h += '<br><span style="font-size:11px;color:#666">' + fmtHrs(d.hours) + ' hrs &mdash; ' + fmtMoney(d.billing);
+      if (rem !== null) h += ' &mdash; Budget remaining: <span style="color:' + (rem<0?'#A32D2D':'#3B6D11') + '">' + fmtMoney(rem) + '</span>';
+      h += '</span></div>';
+    });
+    h += '</td>';
+    h += '<td style="font-weight:600">' + fmtHrs(piData.hours) + '</td>';
+    h += '<td style="color:#3B6D11;font-weight:700;font-size:14px">' + fmtMoney(piData.billing) + '</td>';
+    h += '<td style="font-size:12px;color:' + (piData.piEmail?'#3B6D11':'#A32D2D') + '">' + (piData.piEmail || '<em>No email on file</em>') + '</td>';
+    h += '<td><button class="btn btn-sm btn-success" data-invoice-pi="' + encodeURIComponent(pi) + '|' + (piData.piEmail||'') + '">Send invoice</button></td>';
+    h += '</tr>';
+  });
+
+  h += '</tbody></table></div>';
+  return h;
+}
+
 
 </script>
 </body>
