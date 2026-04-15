@@ -1374,175 +1374,221 @@ function submitProject() {
 }
 
 // ── BILLING & INVOICING ────────────────────────────────────────────────────
+
 function buildBilling() {
-  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">Hours &amp; Billing</span></div>';
-  h += '<div class="filter-row"><span style="font-size:12px;color:#666;font-weight:500">Quarter:</span>';
-  ['Q1','Q2','Q3','Q4'].forEach(function(q){h+='<button class="qbtn'+(q===curQ()?' active':'')+'" data-bq="'+q+'">'+q+'</button>';});
-  h += '<input type="number" id="bYear" value="'+curYr()+'" min="2020" max="2035" style="width:70px;padding:5px 8px;font-size:12px;border:1px solid #ccc;border-radius:6px">';
+  var pis = [];
+  projects.forEach(function(p) { if (pis.indexOf(p.pi) === -1) pis.push(p.pi); });
+  pis.sort();
+
+  var h = '<div class="card">';
+  h += '<div class="section-hdr" style="margin-bottom:1rem"><span class="card-title" style="margin:0">Hours &amp; Billing</span></div>';
+  h += '<div class="filter-row">';
+  h += '<span style="font-size:12px;color:#666;font-weight:500">Quarter:</span>';
+  ['Q1','Q2','Q3','Q4'].forEach(function(q) {
+    h += '<button class="qbtn" id="bq_' + q + '" data-bq="' + q + '">' + q + '</button>';
+  });
+  h += '<input type="number" id="bYear" value="' + curYr() + '" min="2020" max="2035" style="width:70px;padding:5px 8px;font-size:12px;border:1px solid #ccc;border-radius:6px">';
   h += '<select id="bStaff" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="">All staff</option>';
-  STAFF.forEach(function(s){h+='<option>'+s+'</option>';}); h += '</select>';
+  STAFF.forEach(function(s) { h += '<option>' + s + '</option>'; });
+  h += '</select>';
   h += '<select id="bPI" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="">All PIs</option>';
-  var pis=[]; projects.forEach(function(p){if(pis.indexOf(p.pi)===-1)pis.push(p.pi);}); pis.sort().forEach(function(pi){h+='<option>'+pi+'</option>';}); h += '</select>';
-  h += '</div><div id="billingContent"></div></div>';
+  pis.forEach(function(pi) { h += '<option>' + pi + '</option>'; });
+  h += '</select>';
+  h += '</div>';
+  h += '<div id="billingContent"><div class="empty">Loading...</div></div>';
+  h += '</div>';
   sh('pageContainer', h);
-  document.querySelectorAll('[data-bq]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      document.querySelectorAll('[data-bq]').forEach(function(b){b.className='qbtn';}); this.className='qbtn active';
-      renderBillingTable(this.getAttribute('data-bq'), parseInt(gv('bYear')));
-    });
-  });
-  el('bYear').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(this.value)); });
-  el('bStaff').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(gv('bYear'))); });
-  el('bPI').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(gv('bYear'))); });
-  // Default to most recent quarter with data, fallback to Q1
-  var defaultQ = curQ(), defaultYr = curYr();
+
+  // Find most recent quarter with data
+  var dq = curQ(), dyr = curYr();
   if (hoursData.length) {
-    var sorted = hoursData.slice().sort(function(a,b){ return (b.year*10+(['Q1','Q2','Q3','Q4'].indexOf(b.quarter))) - (a.year*10+(['Q1','Q2','Q3','Q4'].indexOf(a.quarter))); });
-    if (sorted.length) { defaultQ = sorted[0].quarter; defaultYr = sorted[0].year; }
+    var qOrder = ['Q1','Q2','Q3','Q4'];
+    var best = null;
+    hoursData.forEach(function(h) {
+      if (!best) { best = h; return; }
+      if (h.year > best.year) { best = h; return; }
+      if (h.year === best.year && qOrder.indexOf(h.quarter) > qOrder.indexOf(best.quarter)) best = h;
+    });
+    if (best) { dq = best.quarter; dyr = best.year; }
   }
-  // Update the active quarter button
-  document.querySelectorAll('[data-bq]').forEach(function(b){ b.className='qbtn'+(b.getAttribute('data-bq')===defaultQ?' active':''); });
-  el('bYear').value = defaultYr;
-  renderBillingTable(defaultQ, defaultYr);
-}
-function renderBillingTable(q, yr) {
-  var staff=gv('bStaff'), pi=gv('bPI');
-  var filtered = hoursData.filter(function(h){ return h.quarter===q && h.year===yr && (!staff||h.staffName===staff); });
-  if (pi) { var pids=projects.filter(function(p){return p.pi===pi;}).map(function(p){return p.id;}); filtered=filtered.filter(function(h){return pids.indexOf(h.projectId)>-1;}); }
-  var tH=filtered.reduce(function(a,h){return a+h.hours;},0), tB=filtered.reduce(function(a,h){return a+h.billingAmount;},0);
-  if (!filtered.length) { sh('billingContent','<div class="empty">No hours for '+q+' '+yr+' matching these filters.</div>'); return; }
-  // Build byProj map for buildBilProjectView
-  var byProj={};
-  filtered.forEach(function(h){
-    if(!byProj[h.projectId])byProj[h.projectId]={hours:0,billing:0};
-    byProj[h.projectId].hours+=h.hours;
-    byProj[h.projectId].billing+=h.billingAmount;
+
+  // Set active quarter button
+  document.querySelectorAll('[data-bq]').forEach(function(b) {
+    b.className = 'qbtn' + (b.getAttribute('data-bq') === dq ? ' active' : '');
   });
-  var piCount = {};
-  Object.keys(byProj).forEach(function(pid){ var p=projects.filter(function(x){return x.id===pid;})[0]; if(p&&!piCount[p.pi])piCount[p.pi]=1; });
-  var h = '<div class="metrics" style="margin-bottom:1rem">';
-  h += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-blue">'+fmtHrs(tH)+'</div></div>';
-  h += '<div class="metric"><div class="metric-label">Total billed</div><div class="metric-value mv-green">'+fmtMoney(tB)+'</div></div>';
-  h += '<div class="metric"><div class="metric-label">PIs billed</div><div class="metric-value mv-purple">'+Object.keys(piCount).length+'</div></div>';
-  h += '<div class="metric"><div class="metric-label">% Effort</div><div class="metric-value mv-amber">'+(tH/520*100).toFixed(1)+'%</div></div></div>';
-  h += buildBilProjectView(byProj);
-  sh('billingContent', h);
-  // Attach invoice listeners
-  document.querySelectorAll('[data-invoice-pi]').forEach(function(btn){
-    btn.addEventListener('click',function(){
-      var parts=decodeURIComponent(this.getAttribute('data-invoice-pi')).split('|');
-      sendInvoiceForPI(parts[0], parts[1]||'');
+  document.getElementById('bYear').value = dyr;
+
+  // Attach quarter buttons
+  document.querySelectorAll('[data-bq]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      document.querySelectorAll('[data-bq]').forEach(function(b) { b.className = 'qbtn'; });
+      this.className = 'qbtn active';
+      doBillingRender();
     });
   });
+  document.getElementById('bYear').addEventListener('change', doBillingRender);
+  document.getElementById('bStaff').addEventListener('change', doBillingRender);
+  document.getElementById('bPI').addEventListener('change', doBillingRender);
+
+  doBillingRender();
 }
 
+function doBillingRender() {
+  var aq = document.querySelector('[data-bq].active');
+  var q = aq ? aq.getAttribute('data-bq') : curQ();
+  var yr = parseInt(document.getElementById('bYear').value) || curYr();
+  var staff = document.getElementById('bStaff').value;
+  var piFilter = document.getElementById('bPI').value;
 
-function sendInvoice(pid) {
-  // Find the PI for this project, then invoice ALL their projects together
-  var triggerProj = projects.filter(function(x) { return x.id === pid; })[0];
-  if (!triggerProj) return;
-  sendInvoiceForPI(triggerProj.pi, triggerProj.piEmail);
-}
-
-function sendInvoiceForPI(piName, piEmail) {
-  // Get all projects for this PI
-  var piProjects = projects.filter(function(p) { return p.pi === piName; });
-  if (!piProjects.length) return;
-
-  // Use first project's FM info and PI email if not passed directly
-  var fmName = '', fmEmail = '', fau = '', piEmailFinal = piEmail || '';
-  piProjects.forEach(function(p) {
-    if (!fmName && p.fmName) fmName = p.fmName;
-    if (!fmEmail && p.fmEmail) fmEmail = p.fmEmail;
-    if (!piEmailFinal && p.piEmail) piEmailFinal = p.piEmail;
-  });
-
-  var today = new Date().toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
-  function fmt(n) { return n.toLocaleString('en-US', {style:'currency', currency:'USD'}); }
-  function pad(s, len) { s = String(s); while (s.length < len) s += ' '; return s; }
-
-  var grandTotalHrs = 0, grandTotalBill = 0;
-  var projectSections = [];
-
-  piProjects.forEach(function(p) {
-    var ph = hoursData.filter(function(h) { return h.projectId === p.id; });
-    if (!ph.length) return; // skip projects with no hours
-
-    var tH = ph.reduce(function(a,h) { return a+h.hours; }, 0);
-    var tB = ph.reduce(function(a,h) { return a+h.billingAmount; }, 0);
-    grandTotalHrs += tH;
-    grandTotalBill += tB;
-
-    // By service type
-    var bySvc = {};
-    ph.forEach(function(h) {
-      if (!bySvc[h.serviceType]) bySvc[h.serviceType] = {hrs:0, bill:0};
-      bySvc[h.serviceType].hrs += h.hours;
-      bySvc[h.serviceType].bill += h.billingAmount;
-    });
-
-    // By quarter
-    var byQ = {};
-    ph.forEach(function(h) {
-      var k = h.quarter + ' ' + h.year;
-      if (!byQ[k]) byQ[k] = {hrs:0, bill:0};
-      byQ[k].hrs += h.hours;
-      byQ[k].bill += h.billingAmount;
-    });
-
-    var section = '';
-    section += '\nProject: ' + p.project + '\n';
-    section += 'Grant #: ' + (p.grant || 'N/A') + '   FAU: ' + (p.fau || 'N/A') + '\n';
-    section += '-'.repeat(55) + '\n';
-    section += pad('Service type', 28) + pad('Hours', 8) + 'Amount\n';
-    section += '-'.repeat(55) + '\n';
-    Object.keys(bySvc).forEach(function(svc) {
-      section += pad(svc, 28) + pad(bySvc[svc].hrs.toFixed(1), 8) + fmt(bySvc[svc].bill) + '\n';
-    });
-    section += '-'.repeat(55) + '\n';
-    section += pad('Project subtotal', 28) + pad(tH.toFixed(1), 8) + fmt(tB) + '\n';
-    if (p.budgetTarget) {
-      section += pad('Budget target', 28) + ' '.repeat(8) + fmt(p.budgetTarget) + '\n';
-      section += pad('Remaining budget', 28) + ' '.repeat(8) + fmt(p.budgetTarget - tB) + '\n';
+  var filtered = hoursData.filter(function(h) {
+    if (h.quarter !== q || h.year !== yr) return false;
+    if (staff && h.staffName !== staff) return false;
+    if (piFilter) {
+      var p = null;
+      for (var i = 0; i < projects.length; i++) { if (projects[i].id === h.projectId) { p = projects[i]; break; } }
+      if (!p || p.pi !== piFilter) return false;
     }
-
-    projectSections.push(section);
+    return true;
   });
 
-  if (!projectSections.length) {
-    alert('No hours have been logged for any of ' + piName + '\'s projects yet.');
+  if (!filtered.length) {
+    sh('billingContent', '<div class="empty">No hours for ' + q + ' ' + yr + ' matching these filters.</div>');
     return;
   }
 
-  var body = 'UCLA DEPARTMENT OF MEDICINE STATISTICS\n';
-  body += 'DOMStat Statistical Consulting Services\n';
-  body += 'Invoice Date: ' + today + '\n';
-  body += '='.repeat(55) + '\n\n';
-  body += 'BILL TO\n';
-  body += 'Principal Investigator: ' + piName + '\n';
-  body += 'Projects invoiced: ' + projectSections.length + '\n\n';
-  body += '='.repeat(55) + '\n';
-  body += 'ITEMIZED CHARGES BY PROJECT\n';
-  body += '='.repeat(55) + '\n';
-  body += projectSections.join('\n');
-  body += '\n' + '='.repeat(55) + '\n';
-  body += 'INVOICE TOTAL\n';
-  body += '-'.repeat(55) + '\n';
-  body += pad('Total hours', 28) + pad(grandTotalHrs.toFixed(1), 8) + '\n';
-  body += pad('TOTAL AMOUNT DUE', 28) + ' '.repeat(8) + fmt(grandTotalBill) + '\n';
-  body += '='.repeat(55) + '\n\n';
-  body += 'PAYMENT INSTRUCTIONS\n';
-  body += 'Please remit payment to UCLA Department of Medicine Statistics.\n';
-  if (fau) body += 'FAU: ' + fau + '\n';
-  body += '\nQuestions? Contact:\n';
-  body += (fmName || 'DOMStat Fund Manager') + '\n';
-  if (fmEmail) body += fmEmail + '\n';
-  body += '\nDOMStat - UCLA Department of Medicine Statistics\n';
-  body += 'https://alaventure.github.io/domstat-tracker\n';
-  body += '='.repeat(55) + '\n';
+  var tH = 0, tB = 0;
+  filtered.forEach(function(h) { tH += h.hours; tB += h.billingAmount; });
 
-  var subject = encodeURIComponent('DOMStat Invoice — ' + piName + ' — ' + today);
-  window.location.href = 'mailto:' + piEmailFinal + '?subject=' + subject + '&body=' + encodeURIComponent(body);
+  // Group by PI -> project -> hours
+  var byPI = {};
+  filtered.forEach(function(h) {
+    var p = null;
+    for (var i = 0; i < projects.length; i++) { if (projects[i].id === h.projectId) { p = projects[i]; break; } }
+    if (!p) return;
+    if (!byPI[p.pi]) byPI[p.pi] = { piEmail: p.piEmail || '', fmName: p.fmName || '', fmEmail: p.fmEmail || '', projects: {} };
+    if (!byPI[p.pi].piEmail && p.piEmail) byPI[p.pi].piEmail = p.piEmail;
+    if (!byPI[p.pi].projects[p.id]) byPI[p.pi].projects[p.id] = { proj: p, hours: 0, billing: 0, bySvc: {} };
+    byPI[p.pi].projects[p.id].hours += h.hours;
+    byPI[p.pi].projects[p.id].billing += h.billingAmount;
+    if (!byPI[p.pi].projects[p.id].bySvc[h.serviceType]) byPI[p.pi].projects[p.id].bySvc[h.serviceType] = 0;
+    byPI[p.pi].projects[p.id].bySvc[h.serviceType] += h.hours;
+  });
+
+  var html = '<div class="metrics" style="margin-bottom:1rem">';
+  html += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-blue">' + fmtHrs(tH) + '</div></div>';
+  html += '<div class="metric"><div class="metric-label">Total billed</div><div class="metric-value mv-green">' + fmtMoney(tB) + '</div></div>';
+  html += '<div class="metric"><div class="metric-label">PIs billed</div><div class="metric-value mv-purple">' + Object.keys(byPI).length + '</div></div>';
+  html += '<div class="metric"><div class="metric-label">% Effort</div><div class="metric-value mv-amber">' + (tH / 520 * 100).toFixed(1) + '%</div></div></div>';
+
+  Object.keys(byPI).sort().forEach(function(piName) {
+    var pd = byPI[piName];
+    var piTotalHrs = 0, piTotalBill = 0;
+    Object.keys(pd.projects).forEach(function(pid) { piTotalHrs += pd.projects[pid].hours; piTotalBill += pd.projects[pid].billing; });
+
+    html += '<div style="border:1px solid #e5e5e5;border-radius:10px;margin-bottom:12px;overflow:hidden">';
+    // PI header row
+    html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:#f9f9f9;border-bottom:1px solid #e5e5e5;flex-wrap:wrap;gap:8px">';
+    html += '<div><span style="font-weight:700;font-size:14px">' + piName + '</span>';
+    html += '<span style="font-size:12px;color:#888;margin-left:12px">' + Object.keys(pd.projects).length + ' project' + (Object.keys(pd.projects).length !== 1 ? 's' : '') + '</span></div>';
+    html += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">';
+    html += '<span style="font-size:13px"><strong>' + fmtHrs(piTotalHrs) + ' hrs</strong></span>';
+    html += '<span style="font-size:14px;font-weight:700;color:#3B6D11">' + fmtMoney(piTotalBill) + '</span>';
+    if (pd.piEmail) {
+      html += '<span style="font-size:11px;color:#3B6D11">' + pd.piEmail + '</span>';
+    } else {
+      html += '<span style="font-size:11px;color:#A32D2D;font-style:italic">No email on file</span>';
+    }
+    // Invoice button with PI name stored as data attribute
+    html += '<button class="btn btn-sm btn-success billing-invoice-btn" data-pi="' + piName.replace(/"/g, '&quot;') + '" data-email="' + (pd.piEmail || '') + '">Send invoice</button>';
+    html += '</div></div>';
+
+    // Projects under this PI
+    Object.keys(pd.projects).forEach(function(pid) {
+      var pd2 = pd.projects[pid];
+      var p = pd2.proj;
+      var rem = p.budgetTarget ? (p.budgetTarget - projBill(p.id)) : null;
+      html += '<div style="padding:10px 16px;border-bottom:1px solid #f5f5f5">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">';
+      html += '<div>';
+      html += '<span style="font-weight:600;font-size:13px">' + p.project + '</span>';
+      html += '<span class="' + typeBadge(p.type) + '" style="margin-left:8px">' + typeLabel(p.type) + '</span>';
+      if (p.grant) html += '<span style="font-size:11px;color:#888;margin-left:8px">Grant: ' + p.grant + '</span>';
+      if (p.fau) html += '<span style="font-size:11px;color:#888;margin-left:8px">FAU: ' + p.fau + '</span>';
+      html += '</div>';
+      html += '<div style="text-align:right"><span style="font-weight:600;color:#3B6D11">' + fmtMoney(pd2.billing) + '</span>';
+      if (rem !== null) html += '<br><span style="font-size:11px;color:' + (rem < 0 ? '#A32D2D' : '#888') + '">Remaining: ' + fmtMoney(rem) + '</span>';
+      html += '</div></div>';
+      // Service breakdown
+      html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">';
+      Object.keys(pd2.bySvc).forEach(function(svc) {
+        html += '<span style="font-size:11px;background:#f0f0f0;padding:2px 8px;border-radius:12px;color:#666">' + svc + ': ' + fmtHrs(pd2.bySvc[svc]) + ' hrs</span>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+  });
+
+  sh('billingContent', html);
+
+  // Attach invoice buttons AFTER content is rendered
+  var btns = document.querySelectorAll('.billing-invoice-btn');
+  btns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var piName = this.getAttribute('data-pi');
+      var piEmail = this.getAttribute('data-email');
+      sendInvoiceForPI(piName, piEmail);
+    });
+  });
+}
+
+function sendInvoiceForPI(piName, piEmail) {
+  var piProjects = projects.filter(function(p) { return p.pi === piName; });
+  var fmName = '', fmEmail = '';
+  piProjects.forEach(function(p) {
+    if (!fmName && p.fmName) fmName = p.fmName;
+    if (!fmEmail && p.fmEmail) fmEmail = p.fmEmail;
+    if (!piEmail && p.piEmail) piEmail = p.piEmail;
+  });
+
+  var today = new Date().toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+  var grandHrs = 0, grandBill = 0;
+  var sections = [];
+
+  piProjects.forEach(function(p) {
+    var ph = hoursData.filter(function(h) { return h.projectId === p.id; });
+    if (!ph.length) return;
+    var tH = ph.reduce(function(a,h){return a+h.hours;},0);
+    var tB = ph.reduce(function(a,h){return a+h.billingAmount;},0);
+    grandHrs += tH; grandBill += tB;
+    var bySvc = {};
+    ph.forEach(function(h){if(!bySvc[h.serviceType])bySvc[h.serviceType]={hrs:0,bill:0};bySvc[h.serviceType].hrs+=h.hours;bySvc[h.serviceType].bill+=h.billingAmount;});
+    var sec = '\nProject: ' + p.project + '\n';
+    if (p.grant) sec += 'Grant #: ' + p.grant + '\n';
+    if (p.fau) sec += 'FAU: ' + p.fau + '\n';
+    sec += '-'.repeat(50) + '\n';
+    Object.keys(bySvc).forEach(function(svc){sec += '  ' + svc + ': ' + bySvc[svc].hrs.toFixed(1) + ' hrs = ' + tB.toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n';});
+    sec += '  Subtotal: ' + tH.toFixed(1) + ' hrs = ' + tB.toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n';
+    if (p.budgetTarget) sec += '  Budget remaining: ' + (p.budgetTarget - projBill(p.id)).toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n';
+    sections.push(sec);
+  });
+
+  if (!sections.length) { alert('No hours logged for ' + piName + ' yet.'); return; }
+
+  var body = 'UCLA DEPARTMENT OF MEDICINE STATISTICS\nDOMStat Statistical Consulting Services\nInvoice Date: ' + today + '\n' + '='.repeat(50) + '\n\n';
+  body += 'BILL TO: ' + piName + '\nProjects: ' + sections.length + '\n\n';
+  body += '='.repeat(50) + '\nCHARGES BY PROJECT\n' + '='.repeat(50) + '\n';
+  body += sections.join('\n');
+  body += '\n' + '='.repeat(50) + '\nTOTAL: ' + grandHrs.toFixed(1) + ' hrs = ' + grandBill.toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n' + '='.repeat(50) + '\n\n';
+  body += 'PAYMENT: Please remit to UCLA DOM Statistics\n';
+  if (fmName) body += 'Contact: ' + fmName + (fmEmail ? ' ' + fmEmail : '') + '\n';
+  body += 'https://alaventure.github.io/domstat-tracker\n';
+
+  window.location.href = 'mailto:' + (piEmail || '') + '?subject=' + encodeURIComponent('DOMStat Invoice — ' + piName + ' — ' + today) + '&body=' + encodeURIComponent(body);
+}
+
+function sendInvoice(pid) {
+  var p = projects.filter(function(x){return x.id===pid;})[0];
+  if (p) sendInvoiceForPI(p.pi, p.piEmail||'');
 }
 
 
@@ -2713,56 +2759,6 @@ function renderFDBGrants() {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 showLogin();
-function buildBilProjectView(byProj) {
-  if (!Object.keys(byProj).length) return '<div class="empty">No data</div>';
-
-  // Group projects by PI
-  var byPI = {};
-  Object.keys(byProj).forEach(function(pid) {
-    var p = projects.filter(function(x) { return x.id === pid; })[0];
-    if (!p) return;
-    if (!byPI[p.pi]) byPI[p.pi] = {projects:[], hours:0, billing:0, piEmail:p.piEmail||'', fmName:p.fmName||'', fmEmail:p.fmEmail||''};
-    byPI[p.pi].projects.push({p:p, d:byProj[pid]});
-    byPI[p.pi].hours += byProj[pid].hours;
-    byPI[p.pi].billing += byProj[pid].billing;
-    if (!byPI[p.pi].piEmail && p.piEmail) byPI[p.pi].piEmail = p.piEmail;
-  });
-
-  var h = '<div style="overflow-x:auto"><table><thead><tr>';
-  h += '<th>PI</th><th>Projects</th><th>Total hours</th><th>Total billed</th><th>PI email</th><th>Action</th>';
-  h += '</tr></thead><tbody>';
-
-  Object.keys(byPI).sort().forEach(function(pi) {
-    var piData = byPI[pi];
-    h += '<tr>';
-    h += '<td style="font-weight:600">' + pi + '</td>';
-    h += '<td style="font-size:12px">';
-    piData.projects.forEach(function(entry) {
-      var p = entry.p, d = entry.d;
-      var allBilled = projBill(p.id);
-      var rem = p.budgetTarget ? (p.budgetTarget - allBilled) : null;
-      h += '<div style="padding:4px 0;border-bottom:1px solid #f5f5f5">';
-      h += '<span style="font-weight:500">' + p.project + '</span>';
-      h += '<span class="' + typeBadge(p.type) + '" style="margin-left:6px">' + typeLabel(p.type) + '</span>';
-      if (p.grant) h += '<span style="font-size:11px;color:#888;margin-left:6px">Grant: ' + p.grant + '</span>';
-      if (p.fau) h += '<span style="font-size:11px;color:#888;margin-left:6px">FAU: ' + p.fau + '</span>';
-      h += '<br><span style="font-size:11px;color:#666">' + fmtHrs(d.hours) + ' hrs &mdash; ' + fmtMoney(d.billing);
-      if (rem !== null) h += ' &mdash; Budget remaining: <span style="color:' + (rem<0?'#A32D2D':'#3B6D11') + '">' + fmtMoney(rem) + '</span>';
-      h += '</span></div>';
-    });
-    h += '</td>';
-    h += '<td style="font-weight:600">' + fmtHrs(piData.hours) + '</td>';
-    h += '<td style="color:#3B6D11;font-weight:700;font-size:14px">' + fmtMoney(piData.billing) + '</td>';
-    h += '<td style="font-size:12px;color:' + (piData.piEmail?'#3B6D11':'#A32D2D') + '">' + (piData.piEmail || '<em>No email on file</em>') + '</td>';
-    h += '<td><button class="btn btn-sm btn-success" data-invoice-pi="' + encodeURIComponent(pi) + '|' + (piData.piEmail||'') + '">Send invoice</button></td>';
-    h += '</tr>';
-  });
-
-  h += '</tbody></table></div>';
-  return h;
-}
-
-
 </script>
 </body>
 </html>
