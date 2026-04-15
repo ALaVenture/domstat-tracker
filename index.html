@@ -673,7 +673,8 @@ function renderPage(p) {
     staffview: buildStaffOverview, budgets: buildBudgets,
     approvals: buildApprovals, editproject: buildEditProject,
     intake: buildIntake, mystatus: buildMyStatus,
-    myprofile: buildMyProfile, staffskills: buildStaffSkills
+    myprofile: buildMyProfile, staffskills: buildStaffSkills,
+    availability: buildAvailability, facultydb: buildFacultyDB
   };
   try {
     (fns[p] || buildIntake)();
@@ -844,7 +845,9 @@ function buildDashboard() {
     h += '</tbody></table></div>';
   }
   h += '</div>';
+  console.log('DOMStat: pageContainer exists='+!!el('pageContainer')+' h.length='+h.length);
   sh('pageContainer', h);
+  console.log('DOMStat: after sh, pageContainer.innerHTML.length='+(el('pageContainer')?el('pageContainer').innerHTML.length:0));
   document.querySelectorAll('[data-detail]').forEach(function(row) {
     row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); });
   });
