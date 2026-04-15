@@ -115,7 +115,7 @@ const ROLE_PAGES={
   public:["pidashboard","intake","mystatus"],
   staff:["dashboard","myprojects","editproject","loghours","myhours","myprofile","intake"],
   staffmgr:["dashboard","allprojects","editproject","loghours","myhours","myprofile","staffskills","intake"],
-  faculty:["dashboard","allprojects","editproject","facultyreporting","myprofile","staffskills","intake"],
+  faculty:["dashboard","editproject","facultyreporting","myprofile","staffskills","intake"],
   fund:["dashboard","allprojects","billing","fund","staffskills"],
   admin:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"],
   assocdir:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"],
@@ -1057,43 +1057,91 @@ function renderMyHoursTable(q, yr) {
 // ── EDIT PROJECT / JOIN ────────────────────────────────────────────────────
 function buildEditProject() {
   var h = '<div class="card"><div class="card-title">Search, join &amp; edit projects</div>';
-  h += '<div class="filter-row"><input id="epSearch" type="text" placeholder="Search by project name or PI..." style="flex:1;min-width:200px">';
-  h += '<select id="epType"><option value="">All types</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select></div>';
-  h += '<div id="epList">' + buildEditProjectList(projects) + '</div></div>';
+  h += '<div class="filter-row">';
+  h += '<input id="epSearch" type="text" placeholder="Search by project name or PI..." style="flex:1;min-width:200px">';
+  h += '<select id="epType"><option value="">All types</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select>';
+  h += '<select id="epGroup"><option value="all">All projects</option><option value="mine">My projects first</option><option value="onlyme"'+(session.role==="faculty"?' selected':'')+'>My projects only</option></select>';
+  h += '</div>';
+  var epDefaultGroup = session.role === 'faculty' ? 'onlyme' : 'mine';
+  h += '<div id="epList">' + buildEditProjectList(projects, epDefaultGroup, '') + '</div></div>';
   sh('pageContainer', h);
   el('epSearch').addEventListener('input', filterEditProjects);
   el('epType').addEventListener('change', filterEditProjects);
+  el('epGroup').addEventListener('change', filterEditProjects);
   attachEditProjectHandlers();
 }
+
 function filterEditProjects() {
-  var q = gv('epSearch').toLowerCase(), type = gv('epType');
-  var f = projects.filter(function(p) { return (!q||(p.project+p.pi).toLowerCase().indexOf(q)>-1) && (!type||p.type===type); });
-  sh('epList', buildEditProjectList(f));
+  var q = gv('epSearch').toLowerCase();
+  var type = gv('epType');
+  var group = gv('epGroup') || 'mine';
+  var f = projects.filter(function(p) {
+    return (!q || (p.project+p.pi).toLowerCase().indexOf(q) > -1) && (!type || p.type === type);
+  });
+  sh('epList', buildEditProjectList(f, group, q));
   attachEditProjectHandlers();
 }
-function buildEditProjectList(list) {
-  if (!list.length) return '<div class="empty">No projects match your search.</div>';
+
+function buildEditProjectList(list, group, query) {
+  group = group || 'mine';
   var onTeamFn = function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); };
+  var myProjects = list.filter(onTeamFn);
+  var otherProjects = list.filter(function(p) { return !onTeamFn(p); });
+
+  if (!list.length) return '<div class="empty">No projects match your search.</div>';
+
   var h = '';
-  list.slice(0,20).forEach(function(p) {
-    var onTeam = onTeamFn(p);
-    h += '<div style="border:1px solid #e5e5e5;border-radius:8px;padding:12px;margin-bottom:8px;background:#fff">';
-    h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
-    h += '<div><span style="font-weight:600">' + p.project + '</span><span style="font-size:12px;color:#888;margin-left:8px">' + p.pi + (p.department?' &middot; '+p.department:'') + '</span><span class="' + typeBadge(p.type) + '" style="margin-left:6px">' + typeLabel(p.type) + '</span></div>';
-    h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-    if (!onTeam) h += '<button class="btn btn-sm btn-primary" data-join="' + p.id + '">+ Join</button>';
-    else h += '<span style="font-size:12px;color:#3B6D11;font-weight:500;padding:5px">&#10003; On team</span>';
-    if (canEditNow() || onTeam) h += '<button class="btn btn-sm" data-edit="' + p.id + '">Edit</button>';
-    h += '</div></div>';
-    h += '<div style="font-size:12px;color:#999;margin-top:5px">Team: ' + ((p.team||[]).map(function(m) { return m.name+(m.lead?' (Lead)':''); }).join(', ')||'Unassigned') + '</div></div>';
-  });
-  if (list.length > 20) h += '<div class="empty">Showing first 20. Refine search for more.</div>';
+
+  // Show "My Projects" section first if group !== 'all'
+  if (group !== 'all' && myProjects.length) {
+    h += '<div style="font-size:11px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px;display:flex;align-items:center;gap:8px">';
+    h += '<span style="background:#E6F1FB;color:#185FA5;padding:3px 10px;border-radius:20px">My projects (' + myProjects.length + ')</span></div>';
+    myProjects.forEach(function(p) { h += buildEPCard(p, true); });
+    if (group === 'onlyme') {
+      if (!myProjects.length) h += '<div class="empty">You are not on any projects yet.</div>';
+      return h;
+    }
+    if (otherProjects.length) {
+      h += '<div style="height:1px;background:#e8e8e6;margin:12px 0"></div>';
+      h += '<div style="font-size:11px;font-weight:700;color:#3B6D11;text-transform:uppercase;letter-spacing:.07em;margin-bottom:8px">';
+      h += '<span style="background:#EAF3DE;color:#3B6D11;padding:3px 10px;border-radius:20px">Other projects (' + otherProjects.length + ')</span></div>';
+      otherProjects.slice(0, 15).forEach(function(p) { h += buildEPCard(p, false); });
+      if (otherProjects.length > 15) h += '<div class="empty">Showing first 15. Use search to find more.</div>';
+    }
+  } else {
+    // 'all' mode - show everything flat
+    var shown = list.slice(0, 20);
+    shown.forEach(function(p) { h += buildEPCard(p, onTeamFn(p)); });
+    if (list.length > 20) h += '<div class="empty">Showing first 20. Refine search for more.</div>';
+  }
+
   return h;
 }
-function attachEditProjectHandlers() {
-  document.querySelectorAll('[data-join]').forEach(function(btn) { btn.addEventListener('click', function() { joinProject(this.getAttribute('data-join')); }); });
-  document.querySelectorAll('[data-edit]').forEach(function(btn) { btn.addEventListener('click', function() { openEditModal(this.getAttribute('data-edit')); }); });
+
+function buildEPCard(p, onTeam) {
+  var canEdit = canEditNow() || onTeam;
+  var h = '<div style="border:1px solid ' + (onTeam ? '#b5d4f4' : '#e5e5e5') + ';border-left:3px solid ' + (onTeam ? '#185FA5' : '#e5e5e5') + ';border-radius:8px;padding:12px;margin-bottom:8px;background:' + (onTeam ? '#fafcff' : '#fff') + '">';
+  h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+  h += '<div>';
+  h += '<span style="font-weight:600">' + p.project + '</span>';
+  h += '<span style="font-size:12px;color:#888;margin-left:8px">' + p.pi + (p.department ? ' &middot; ' + p.department : '') + '</span>';
+  h += '<span class="' + typeBadge(p.type) + '" style="margin-left:6px">' + typeLabel(p.type) + '</span>';
+  if (onTeam) {
+    var me = (p.team||[]).filter(function(m) { return m.name === session.name; })[0];
+    if (me && me.lead) h += '<span class="badge badge-lead" style="margin-left:6px">Lead</span>';
+    else h += '<span style="font-size:11px;color:#185FA5;margin-left:6px;font-weight:500">&#10003; On team</span>';
+  }
+  h += '</div>';
+  h += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
+  if (!onTeam) h += '<button class="btn btn-sm btn-primary" data-join="' + p.id + '">+ Join</button>';
+  if (canEdit) h += '<button class="btn btn-sm" data-edit="' + p.id + '">Edit</button>';
+  h += '</div></div>';
+  h += '<div style="font-size:12px;color:#999;margin-top:5px">Team: ' + ((p.team||[]).map(function(m) { return m.name + (m.lead ? ' (Lead)' : ''); }).join(', ') || 'Unassigned') + '</div>';
+  h += '</div>';
+  return h;
 }
+
+
 function joinProject(projectId) {
   var p = projects.filter(function(x) { return x.id === projectId; })[0]; if (!p) return;
   if ((p.team||[]).some(function(m) { return m.name === session.name; })) { alert('You are already on this project.'); return; }
@@ -1343,7 +1391,16 @@ function buildBilling() {
   el('bYear').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(this.value)); });
   el('bStaff').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(gv('bYear'))); });
   el('bPI').addEventListener('change', function(){ var aq=document.querySelector('[data-bq].active'); renderBillingTable(aq?aq.getAttribute('data-bq'):curQ(), parseInt(gv('bYear'))); });
-  renderBillingTable(curQ(), curYr());
+  // Default to most recent quarter with data, fallback to Q1
+  var defaultQ = curQ(), defaultYr = curYr();
+  if (hoursData.length) {
+    var sorted = hoursData.slice().sort(function(a,b){ return (b.year*10+(['Q1','Q2','Q3','Q4'].indexOf(b.quarter))) - (a.year*10+(['Q1','Q2','Q3','Q4'].indexOf(a.quarter))); });
+    if (sorted.length) { defaultQ = sorted[0].quarter; defaultYr = sorted[0].year; }
+  }
+  // Update the active quarter button
+  document.querySelectorAll('[data-bq]').forEach(function(b){ b.className='qbtn'+(b.getAttribute('data-bq')===defaultQ?' active':''); });
+  el('bYear').value = defaultYr;
+  renderBillingTable(defaultQ, defaultYr);
 }
 function renderBillingTable(q, yr) {
   var staff=gv('bStaff'), pi=gv('bPI');
