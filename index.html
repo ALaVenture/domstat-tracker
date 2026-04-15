@@ -334,15 +334,11 @@ function loadData(manual){
   Promise.all([p0,p1,p2,p3,p4,p5,p6,p7]).then(function(results){
     var pd=results[0],hd=results[1],ad=results[2],prfd=results[3],srd=results[4],fhd=results[5],fpd=results[6],fgd=results[7];
     if(Array.isArray(pd)){
-      console.log('DOMStat: raw rows from Sheet1:', pd.length);
       projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;});
-      console.log('DOMStat: projects after filter:', projects.length);
       if(projects.length){
         nextIds.proj=Math.max.apply(null,projects.map(function(p){return Number(p.id)||0;}).concat([0]))+1;
-        console.log('DOMStat: nextIds.proj:', nextIds.proj);
       }
     } else {
-      console.log('DOMStat: pd is not an array:', typeof pd, pd);
     }
     if(Array.isArray(hd)){
       hoursData=hd.map(rowToHours).filter(function(h){return h.id&&h.projectId;});
@@ -363,11 +359,8 @@ function loadData(manual){
     if(Array.isArray(fgd))facultyGrants=fgd.filter(function(r){return r.id;});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
-    console.log('DOMStat: calling renderNav, role='+session.role+' page='+currentPage);
     try { renderNav(); } catch(navErr) { console.error('DOMStat renderNav error:', navErr); }
-    console.log('DOMStat: calling renderPage');
     try { renderPage(currentPage); } catch(pageErr) { console.error('DOMStat renderPage error:', pageErr); }
-    console.log('DOMStat: render complete');
   }).catch(function(e){
     setSyncStatus("err","Connection failed");
     renderNav();
@@ -801,7 +794,6 @@ function markProcessed(id) {
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────
 function buildDashboard() {
-  console.log('DOMStat: buildDashboard called, projects.length='+projects.length);
   var isStaff = session.role === 'staff' || session.role === 'staffmgr';
   var myP = isStaff ? projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); }) : projects;
   var active = myP.filter(function(p) { return p.status === 'active'; }).length;
@@ -845,9 +837,7 @@ function buildDashboard() {
     h += '</tbody></table></div>';
   }
   h += '</div>';
-  console.log('DOMStat: pageContainer exists='+!!el('pageContainer')+' h.length='+h.length);
   sh('pageContainer', h);
-  console.log('DOMStat: after sh, pageContainer.innerHTML.length='+(el('pageContainer')?el('pageContainer').innerHTML.length:0));
   document.querySelectorAll('[data-detail]').forEach(function(row) {
     row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); });
   });
@@ -934,7 +924,6 @@ function buildMyProjects() {
 }
 
 function buildAllProjects() {
-  console.log('DOMStat: buildAllProjects called, projects.length='+projects.length);
   var allSkills = []; var _tax=getAllSkills(); Object.keys(_tax).forEach(function(k){(_tax[k]||[]).forEach(function(v){allSkills.push(v);});});
   var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">All projects (' + projects.length + ')</span>';
   h += '<div style="display:flex;gap:8px">';
@@ -959,7 +948,6 @@ function buildAllProjects() {
 }
 
 function buildAPGrouped(list) {
-  console.log('DOMStat: buildAPGrouped list.length='+list.length);
   if (!list.length) return '<div class="empty">No projects match filters.</div>';
   var canFunds = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
 
