@@ -363,8 +363,11 @@ function loadData(manual){
     if(Array.isArray(fgd))facultyGrants=fgd.filter(function(r){return r.id;});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
-    renderNav();
-    renderPage(currentPage);
+    console.log('DOMStat: calling renderNav, role='+session.role+' page='+currentPage);
+    try { renderNav(); } catch(navErr) { console.error('DOMStat renderNav error:', navErr); }
+    console.log('DOMStat: calling renderPage');
+    try { renderPage(currentPage); } catch(pageErr) { console.error('DOMStat renderPage error:', pageErr); }
+    console.log('DOMStat: render complete');
   }).catch(function(e){
     setSyncStatus("err","Connection failed");
     renderNav();
