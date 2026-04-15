@@ -649,7 +649,7 @@ function renderNav(){
   });
   nav+='</div>';
 
-  sh("root","<div class=\"app\">"+top+nav+"<div id=\"pageContainer\"></div></div>");
+  sh('root','<div class="app">'+top+nav+'<div id="pageContainer"></div></div>');
 
   var navEl=el("mainNav");
   if(navEl)navEl.querySelectorAll(".navbtn").forEach(function(btn){
@@ -800,6 +800,7 @@ function markProcessed(id) {
 
 // ── DASHBOARD ──────────────────────────────────────────────────────────────
 function buildDashboard() {
+  console.log('DOMStat: buildDashboard called, projects.length='+projects.length);
   var isStaff = session.role === 'staff' || session.role === 'staffmgr';
   var myP = isStaff ? projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); }) : projects;
   var active = myP.filter(function(p) { return p.status === 'active'; }).length;
@@ -930,6 +931,7 @@ function buildMyProjects() {
 }
 
 function buildAllProjects() {
+  console.log('DOMStat: buildAllProjects called, projects.length='+projects.length);
   var allSkills = []; var _tax=getAllSkills(); Object.keys(_tax).forEach(function(k){(_tax[k]||[]).forEach(function(v){allSkills.push(v);});});
   var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">All projects (' + projects.length + ')</span>';
   h += '<div style="display:flex;gap:8px">';
@@ -954,6 +956,7 @@ function buildAllProjects() {
 }
 
 function buildAPGrouped(list) {
+  console.log('DOMStat: buildAPGrouped list.length='+list.length);
   if (!list.length) return '<div class="empty">No projects match filters.</div>';
   var canFunds = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
 
