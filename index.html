@@ -371,18 +371,10 @@ function loadData(manual){
   Promise.all([p0,p1,p2,p3,p4,p5,p6,p7]).then(function(results){
     var pd=results[0],hd=results[1],ad=results[2],prfd=results[3],srd=results[4],fhd=results[5],fpd=results[6],fgd=results[7];
     if(Array.isArray(pd)){
-      try {
-        projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;});
-        console.log('DOMSTAT projects loaded:',projects.length);
-      } catch(mapErr) {
-        console.error('DOMSTAT rowToProject error:',mapErr.message);
-        // Try row by row to find bad row
+      try { projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;}); }
+      catch(mapErr) {
         projects=[];
-        pd.forEach(function(r,i){
-          try{var p=rowToProject(r);if(p.id&&p.project)projects.push(p);}
-          catch(e2){console.error('DOMSTAT bad row',i,r.id,e2.message);}
-        });
-        console.log('DOMSTAT fallback projects:',projects.length);
+        pd.forEach(function(r){try{var p=rowToProject(r);if(p.id&&p.project)projects.push(p);}catch(e2){}});
       }
       if(projects.length){
         nextIds.proj=Math.max.apply(null,projects.map(function(p){return Number(p.id)||0;}).concat([0]))+1;
