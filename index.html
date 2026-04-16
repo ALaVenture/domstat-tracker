@@ -151,6 +151,35 @@ textarea{resize:vertical;min-height:60px}
 const API="https://script.google.com/macros/s/AKfycbwKW02S6ay9OkCyccWegXkxKM6gLMwWSiCvBpxYx2cKDp9nc4hVggmrWqsbMGGuttA/exec";
 const STAFF=["Angelique Rubio", "Angshuman Saha", "Arseniy Vasilyev", "Chris Castle", "Claudia Perez", "Daniela Markovic", "Dennis Ruenger", "Eric Demer", "Estefania Sanchez Salas", "Holly Wilhalme", "Jenny Brook", "Jinhui Liu", "Josh Lee", "Keren Chen", "Lillian Chen", "Lucia Chen", "Mei Leng", "Paige Smith", "Rebecca Chung", "Rong Guo", "Sitaram Vangala", "Tahmineh Romero", "Tristan Grogan", "Tristan Tibbe", "Victoria Adebambo", "Yash Motwani"];
 const FACULTY=["Chi-Hong Tseng", "Nicholas Jackson", "Alexandra Klomhaus", "Li-Jung Liang", "Myung Sim", "Yiqun Jiang", "Anita Yuan"];
+const STAFF_SALARY={
+  "Angelique Rubio":{"salary":76358.16,"fte":1.0},
+  "Arseniy Vasilyev":{"salary":78028.56,"fte":1.0},
+  "Chris Castle":{"salary":76358.16,"fte":1.0},
+  "Claudia Perez":{"salary":82684.8,"fte":1.0},
+  "Eric Demer":{"salary":68799.6,"fte":1.0},
+  "Estefania Sanchez Salas":{"salary":78028.56,"fte":1.0},
+  "Jinhui Liu":{"salary":76358.16,"fte":1.0},
+  "Josh Lee":{"salary":76358.16,"fte":1.0},
+  "Paige Smith":{"salary":76358.16,"fte":1.0},
+  "Rebecca Chung":{"salary":80116.56,"fte":1.0},
+  "Victoria Adebambo":{"salary":78028.56,"fte":1.0},
+  "Yash Motwani":{"salary":80116.56,"fte":1.0},
+  "Lucia Chen":{"salary":113172.0,"fte":1.0},
+  "Keren Chen":{"salary":87324.0,"fte":1.0},
+  "Lillian Chen":{"salary":91350.0,"fte":1.0},
+  "Tristan Tibbe":{"salary":100119.6,"fte":1.0},
+  "Dennis Ruenger":{"salary":119352.0,"fte":1.0},
+  "Tahmineh Romero":{"salary":108276.0,"fte":1.0},
+  "Mei Leng":{"salary":130764.0,"fte":1.0},
+  "Daniela Markovic":{"salary":122268.0,"fte":0.625},
+  "Holly Wilhalme":{"salary":142440.0,"fte":1.0},
+  "Rong Guo":{"salary":144564.0,"fte":1.0},
+  "Angshuman Saha":{"salary":139812.48,"fte":1.0},
+  "Tristan Grogan":{"salary":159420.0,"fte":1.0},
+  "Sitaram Vangala":{"salary":159096.0,"fte":1.0},
+  "Jenny Brook":{"salary":196428.0,"fte":1.0}
+};
+
 const STAFF_MGRS=["Jenny Brook", "Tristan Grogan", "Holly Wilhalme", "Dennis Ruenger"];
 const RATES={"Angelique Rubio": 66.08, "Arseniy Vasilyev": 66.08, "Chris Castle": 66.08, "Claudia Perez": 66.08, "Eric Demer": 66.08, "Estefania Sanchez Salas": 66.08, "Jinhui Liu": 66.08, "Josh Lee": 66.08, "Paige Smith": 66.08, "Rebecca Chung": 66.08, "Victoria Adebambo": 66.08, "Yash Motwani": 66.08, "Lucia Chen": 71.62, "Keren Chen": 72.87, "Lillian Chen": 72.87, "Tristan Tibbe": 72.87, "Dennis Ruenger": 76.2, "Tahmineh Romero": 82.63, "Mei Leng": 92.32, "Daniela Markovic": 92.72, "Holly Wilhalme": 105.42, "Rong Guo": 105.42, "Angshuman Saha": 108.04, "Tristan Grogan": 122.12, "Sitaram Vangala": 122.69, "Jenny Brook": 149.85};
 const DEPTS=["Cardiology", "Emergency Medicine", "Endocrinology", "Gastroenterology", "General Internal Medicine", "Geriatrics", "Hematology / Oncology", "Hepatology", "Infectious Disease", "Nephrology", "Neurology", "Obstetrics & Gynecology", "Ophthalmology", "Orthopedic Surgery", "Pediatrics", "Primary Care", "Psychiatry", "Pulmonology / Critical Care", "Radiology", "Rheumatology", "Surgery", "UCLA Health System", "CTSI", "GIM & HSR", "Nursing", "VA", "Orthopaedics", "Radiation Oncology", "Other"];
@@ -458,61 +487,91 @@ function buildStaffFYFunding() {
 }
 
 function renderFYFundingTable(fy) {
-  var totalFTE = FTE_ANNUAL;
-  var staffRows = STAFF.map(function(name) {
-    var records = getStaffFYFunding(name, fy);
-    var totalPct = records.reduce(function(a,r){return a+Number(r.pctEffort||0);},0);
-    var totalAmt = records.reduce(function(a,r){return a+Number(r.annualAmount||0);},0);
-    var rate = RATES[name] || 66.08;
-    var maxAmt = calcAnnualBilling(100, rate);
-    var coveragePct = totalPct;
-    return {name:name, records:records, totalPct:coveragePct, totalAmt:totalAmt, maxAmt:maxAmt, rate:rate};
-  }).filter(function(r){ return r.records.length > 0 || r.totalPct > 0; });
-
-  // Also include all staff even if no records
   var allStaffRows = STAFF.map(function(name) {
     var records = getStaffFYFunding(name, fy);
     var totalPct = records.reduce(function(a,r){return a+Number(r.pctEffort||0);},0);
     var totalAmt = records.reduce(function(a,r){return a+Number(r.annualAmount||0);},0);
     var rate = RATES[name] || 66.08;
+    var sal = STAFF_SALARY[name] || null;
+    var annualSalary = sal ? sal.salary : null;
+    var salaryFte = sal ? sal.fte : 1.0;
+    // Coverage = confirmed FY amount / annual salary * 100
+    var salaryCovPct = annualSalary ? Math.round(totalAmt / annualSalary * 100) : null;
     var maxAmt = calcAnnualBilling(100, rate);
-    return {name:name, records:records, totalPct:totalPct, totalAmt:totalAmt, maxAmt:maxAmt, rate:rate};
+    return {name:name, records:records, totalPct:totalPct, totalAmt:totalAmt,
+            maxAmt:maxAmt, rate:rate, annualSalary:annualSalary, salaryFte:salaryFte, salaryCovPct:salaryCovPct};
   });
 
-  var totalFunded = allStaffRows.filter(function(r){return r.totalPct>=90;}).length;
+  var totalFunded  = allStaffRows.filter(function(r){return r.totalPct>=90;}).length;
   var totalPartial = allStaffRows.filter(function(r){return r.totalPct>0&&r.totalPct<90;}).length;
-  var totalUnfunded = allStaffRows.filter(function(r){return r.totalPct===0;}).length;
-  var grandTotal = allStaffRows.reduce(function(a,r){return a+r.totalAmt;},0);
+  var totalUnfunded= allStaffRows.filter(function(r){return r.totalPct===0;}).length;
+  var grandTotal   = allStaffRows.reduce(function(a,r){return a+r.totalAmt;},0);
+  var totalSalary  = allStaffRows.reduce(function(a,r){return a+(r.annualSalary||0);},0);
+  var totalGap     = Math.max(0, totalSalary - grandTotal);
 
-  var h = '<div class="metrics" style="margin-bottom:1.25rem">';
+  var h = '<div class="metrics" style="grid-template-columns:repeat(5,minmax(0,1fr));margin-bottom:1.25rem">';
   h += '<div class="metric"><div class="metric-label">Fully funded (&ge;90%)</div><div class="metric-value mv-green">'+totalFunded+'</div></div>';
   h += '<div class="metric"><div class="metric-label">Partially funded</div><div class="metric-value mv-amber">'+totalPartial+'</div></div>';
   h += '<div class="metric"><div class="metric-label">No FY funding</div><div class="metric-value mv-red">'+totalUnfunded+'</div></div>';
   h += '<div class="metric"><div class="metric-label">Total FY commitment</div><div class="metric-value mv-blue">'+fmtMoney(grandTotal)+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">Total salary</div><div class="metric-value mv-purple">'+fmtMoney(totalSalary)+'</div></div>';
   h += '</div>';
 
+  // Coverage bar vs total salary
+  if (totalSalary > 0) {
+    var covPct = Math.min(100, Math.round(grandTotal/totalSalary*100));
+    var covCol = covPct>=90?'#639922':covPct>=60?'#EF9F27':'#E24B4A';
+    h += '<div style="background:#f9f9f9;border-radius:10px;padding:12px 16px;margin-bottom:1.25rem">';
+    h += '<div style="display:flex;justify-content:space-between;font-size:12px;font-weight:600;margin-bottom:6px">';
+    h += '<span style="color:#555">Overall salary coverage for FY'+fy+'</span>';
+    h += '<span style="color:'+covCol+'">'+covPct+'% covered &mdash; '+fmtMoney(grandTotal)+' of '+fmtMoney(totalSalary)+'</span></div>';
+    h += '<div style="height:12px;background:#e5e5e5;border-radius:6px;overflow:hidden">';
+    h += '<div style="width:'+covPct+'%;height:100%;background:'+covCol+';border-radius:6px;transition:width .3s"></div></div>';
+    h += '<div style="font-size:11px;color:#aaa;margin-top:4px">Funding gap: '+fmtMoney(totalGap)+'</div>';
+    h += '</div>';
+  }
+
   h += '<div style="overflow-x:auto"><table><thead><tr>';
-  h += '<th>Staff member</th><th>Rate/hr</th><th>FY'+fy+' effort</th><th>Coverage bar</th><th>Annual amount</th><th>Max (100% FTE)</th><th>Projects</th>';
+  h += '<th>Staff member</th><th>Annual salary</th><th>FY'+fy+' funding</th><th>Salary coverage</th><th>% Effort</th><th>Coverage bar</th><th>Projects</th>';
   h += '</tr></thead><tbody>';
 
-  allStaffRows.sort(function(a,b){return b.totalPct-a.totalPct;}).forEach(function(r) {
-    var pct = Math.min(100, r.totalPct);
-    var col = pct >= 90 ? '#639922' : pct >= 50 ? '#EF9F27' : pct > 0 ? '#E87722' : '#ccc';
-    var bg  = pct >= 90 ? '#EAF3DE' : pct >= 50 ? '#FAEEDA' : pct > 0 ? '#FFF0E6' : '#f9f9f9';
+  allStaffRows.sort(function(a,b){
+    // Sort by salary coverage pct desc, then name
+    var aPct = a.salaryCovPct||0, bPct = b.salaryCovPct||0;
+    return bPct - aPct;
+  }).forEach(function(r) {
+    var effortPct = Math.min(100, r.totalPct);
+    var covPct = r.salaryCovPct !== null ? Math.min(100, r.salaryCovPct) : null;
+    var dispPct = covPct !== null ? covPct : effortPct;
+    var col = dispPct >= 90 ? '#639922' : dispPct >= 50 ? '#EF9F27' : dispPct > 0 ? '#E87722' : '#bbb';
+    var bg  = dispPct >= 90 ? '#EAF3DE' : dispPct >= 50 ? '#FAEEDA' : dispPct > 0 ? '#FFF0E6' : '#f9f9f9';
     h += '<tr>';
-    h += '<td style="font-weight:600"><div style="display:flex;align-items:center;gap:8px"><div class="initials">'+initials(r.name)+'</div>'+r.name+'</div></td>';
-    h += '<td style="font-size:12px;color:#666">$'+r.rate.toFixed(2)+'/hr</td>';
-    h += '<td><span style="font-size:13px;font-weight:700;background:'+bg+';color:'+col+';padding:3px 10px;border-radius:20px">'+r.totalPct+'%</span></td>';
-    h += '<td><div style="display:flex;align-items:center;gap:8px"><div style="width:100px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:4px"></div></div><span style="font-size:11px;color:#888">'+pct+'%</span></div></td>';
+    h += '<td style="font-weight:600"><div style="display:flex;align-items:center;gap:8px"><div class="initials">'+initials(r.name)+'</div>'+r.name+(r.salaryFte<1?' <span style="font-size:10px;color:#888">('+Math.round(r.salaryFte*100)+'% FTE)</span>':'')+'</div></td>';
+    h += '<td style="font-size:12px;color:#555;font-weight:500">'+(r.annualSalary?fmtMoney(r.annualSalary):'<span style="color:#ccc">N/A</span>')+'</td>';
     h += '<td style="font-weight:700;color:#3B6D11">'+fmtMoney(r.totalAmt)+'</td>';
-    h += '<td style="font-size:12px;color:#888">'+fmtMoney(r.maxAmt)+'</td>';
-    h += '<td style="font-size:12px">';
+    // Salary coverage pill
+    h += '<td>';
+    if (covPct !== null) {
+      h += '<span style="font-size:13px;font-weight:700;background:'+bg+';color:'+col+';padding:3px 10px;border-radius:20px">'+covPct+'%</span>';
+      if (r.annualSalary && r.totalAmt < r.annualSalary) {
+        var gap = r.annualSalary - r.totalAmt;
+        h += '<div style="font-size:10px;color:#A32D2D;margin-top:2px">gap: '+fmtMoney(gap)+'</div>';
+      }
+    } else {
+      h += '<span style="color:#ccc;font-size:12px">N/A</span>';
+    }
+    h += '</td>';
+    h += '<td><span style="font-size:12px;font-weight:600;color:#185FA5">'+r.totalPct+'%</span></td>';
+    h += '<td><div style="display:flex;align-items:center;gap:6px"><div style="width:90px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden"><div style="width:'+dispPct+'%;height:100%;background:'+col+';border-radius:4px"></div></div><span style="font-size:10px;color:#aaa">'+dispPct+'%</span></div></td>';
+    h += '<td style="font-size:11px">';
     if (r.records.length) {
       r.records.forEach(function(rec){
-        h += '<div style="margin-bottom:2px;color:#555">'+rec.projectName.substring(0,35)+(rec.projectName.length>35?'&hellip;':'')+'<span style="color:#185FA5;margin-left:4px;font-weight:600">'+rec.pctEffort+'%</span></div>';
+        h += '<div style="margin-bottom:3px;color:#555">'+rec.projectName.substring(0,32)+(rec.projectName.length>32?'&hellip;':'');
+        h += ' <span style="color:#185FA5;font-weight:600">'+rec.pctEffort+'%</span>';
+        h += ' <span style="color:#3B6D11">'+fmtMoney(Number(rec.annualAmount||0))+'</span></div>';
       });
     } else {
-      h += '<span style="color:#ccc;font-style:italic">No FY'+fy+' funding confirmed</span>';
+      h += '<span style="color:#ccc;font-style:italic">No FY'+fy+' funding</span>';
     }
     h += '</td></tr>';
   });
