@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<!-- DOMStat Portal v6.0-logo3 -->
+<!-- DOMStat Portal v6.1-fund-duration -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -206,6 +206,29 @@ function fmtHrs(n){return(n===null||n===undefined||n==="")?0:Number(n).toFixed(1
 function typeLabel(t){return{pct:"% Effort",hr:"Hourly Recharge",ctsi:"CTSI"}[t]||t;}
 function typeBadge(t){return "badge badge-"+{pct:"pct",hr:"hr",ctsi:"ctsi"}[t];}
 function statusBadge(s){return "badge badge-"+{active:"active",pending:"pending",upcoming:"upcoming",winding:"winding"}[s]||"badge";}
+function getProjectDurationTag(p) {
+  if (!p.start || !p.end) return null;
+  var start = new Date(p.start);
+  var end = new Date(p.end);
+  if (isNaN(start) || isNaN(end)) return null;
+  var months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  if (months <= 0) return null;
+  if (months <= 12) {
+    return {label: months + 'mo', color: '#5F5E5A', bg: '#F1EFE8', title: months + ' month project'};
+  }
+  var years = Math.round(months / 12 * 10) / 10;
+  var yrsLabel = Number.isInteger(years) ? years + 'yr' : Math.round(years) + 'yr';
+  var col = years >= 4 ? '#3C3489' : years >= 2 ? '#185FA5' : '#854F0B';
+  var bg  = years >= 4 ? '#EEEDFE' : years >= 2 ? '#E6F1FB' : '#FAEEDA';
+  return {label: yrsLabel, color: col, bg: bg, title: Math.round(years) + ' year project'};
+}
+
+function durationTagHtml(p) {
+  var tag = getProjectDurationTag(p);
+  if (!tag) return '';
+  return '<span style="font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;background:'+tag.bg+';color:'+tag.color+';letter-spacing:.02em" title="'+tag.title+'">'+tag.label+'</span>';
+}
+
 function getProjectCategory(p) {
   // Planned: future start date OR New Project status
   var today = new Date(); today.setHours(0,0,0,0);
@@ -788,6 +811,7 @@ function showDetail(id) {
   h += '<div><span style="color:#666">PI:</span> <strong>' + p.pi + '</strong></div>';
   h += '<div><span style="color:#666">Department:</span> ' + (p.department || '&mdash;') + '</div>';
   h += '<div><span style="color:#666">Type:</span> <span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></div>';
+  h += durationTagHtml(p);
   h += '<div><span style="color:#666">Status:</span> <span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></div>';
   h += '<div><span style="color:#666">Start:</span> ' + fmtDate(p.start) + '</div>';
   h += '<div><span style="color:#666">End:</span> ' + fmtDate(p.end) + '</div>';
@@ -1154,6 +1178,7 @@ function buildMyProjects() {
           h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
           h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
           h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+          h += durationTagHtml(p);
           h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
           if (me&&me.lead) h += '<span class="badge badge-lead">Lead</span>';
           if (me&&me.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 8px;border-radius:20px">'+me.pct+'% effort</span>';
@@ -1255,6 +1280,7 @@ function buildAPGrouped(list) {
       h += '<div style="font-weight:600;font-size:13px;margin-bottom:5px">'+p.project+'</div>';
       h += '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">';
       h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+      h += durationTagHtml(p);
       h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
       if (p.department) h += '<span style="font-size:11px;color:#888;background:#f5f5f5;padding:2px 8px;border-radius:20px">'+p.department+'</span>';
       if (p.grant) h += '<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">Grant: '+p.grant+'</span>';
@@ -2269,6 +2295,7 @@ function buildFundPIGroup(list) {
       h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
       h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
       h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+      h += durationTagHtml(p);
       h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
       if (p.grant) h += '<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">Grant: '+p.grant+'</span>';
       if (p.fau) h += '<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">FAU: '+p.fau+'</span>';
@@ -2598,6 +2625,7 @@ function buildFund() {
         h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
         h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
         h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+        h += durationTagHtml(p);
         h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
         if(p.grant)h+='<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">Grant: '+p.grant+'</span>';
         if(p.fau)h+='<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">FAU: '+p.fau+'</span>';
