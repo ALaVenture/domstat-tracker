@@ -168,10 +168,10 @@ const ROLE_PAGES={
   staff:["dashboard","myprojects","editproject","loghours","myhours","myprofile","intake"],
   staffmgr:["dashboard","allprojects","editproject","loghours","myhours","myprofile","staffskills","intake"],
   faculty:["dashboard","editproject","facultyreporting","myprofile","staffskills","intake"],
-  fund:["dashboard","allprojects","billing","fund","staffskills"],
-  admin:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"],
-  assocdir:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"],
-  director:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","budgets","approvals","intake"]
+  fund:["dashboard","allprojects","billing","fund","staffskills","stafffunding"],
+  admin:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","stafffunding","budgets","approvals","intake"],
+  assocdir:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","stafffunding","budgets","approvals","intake"],
+  director:["dashboard","allprojects","editproject","loghours","billing","fund","facultyreporting","myprofile","staffskills","availability","facultydb","staffview","stafffunding","budgets","approvals","intake"]
 }
 const PAGE_LABELS={
   pidashboard:"My Dashboard",dashboard:"Dashboard",myprojects:"My Projects",allprojects:"All Projects",
@@ -179,13 +179,13 @@ const PAGE_LABELS={
   billing:"Hours & Billing",fund:"Fund Manager Queue",staffview:"Staff Overview",
   budgets:"Budget Management",approvals:"Pending Approvals",editproject:"Edit Project",
   intake:"Submit Project",mystatus:"My Submissions",myprofile:"My Profile",
-  staffskills:"Staff Skills",availability:"Staff Availability",facultydb:"Faculty Database"
+  staffskills:"Staff Skills",availability:"Staff Availability",facultydb:"Faculty Database",stafffunding:"Staff FY Funding"
 };
 const PROF_BG={Beginner:"#E6F1FB",Proficient:"#EAF3DE",Expert:"#EEEDFE"};
 const PROF_COL={Beginner:"#185FA5",Proficient:"#3B6D11",Expert:"#3C3489"};
 
 // ── State ──────────────────────────────────────────────────────────────────
-var projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[];
+var projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[],fyFunding=[];
 var profilesData={},skillRequests=[],intakeTeam=[];
 var session={role:"public",name:null,piEmail:null};
 var currentPage="intake";
@@ -421,6 +421,7 @@ function loadData(manual){
     if(Array.isArray(fhd))facultyHours=fhd.filter(function(r){return r.id;});
     if(Array.isArray(fpd))facultyPubs=fpd.filter(function(r){return r.id;});
     if(Array.isArray(fgd))facultyGrants=fgd.filter(function(r){return r.id;});
+    if(Array.isArray(fyd))fyFunding=fyd.filter(function(r){return r.id;});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
     try { renderNav(); } catch(navErr) { console.error('DOMStat renderNav error:', navErr); }
@@ -433,6 +434,93 @@ function loadData(manual){
 }
 
 // ── Auth / Login ───────────────────────────────────────────────────────────
+// ── STAFF FY FUNDING VIEW (admin/FM only) ──────────────────────────────────
+function buildStaffFYFunding() {
+  var curFY = new Date().getMonth() >= 6 ? new Date().getFullYear()+1 : new Date().getFullYear();
+  // UCLA FY: Jul-Jun, so if month >= July we're in next FY
+  var today = new Date();
+  curFY = today.getMonth() >= 6 ? today.getFullYear()+1 : today.getFullYear();
+
+  var h = '<div class="card">';
+  h += '<div class="section-hdr" style="margin-bottom:1rem">';
+  h += '<span class="card-title" style="margin:0">Staff FY funding coverage</span>';
+  h += '<div style="display:flex;gap:8px;align-items:center">';
+  h += '<select id="fySelect" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px">';
+  for (var fy = curFY; fy >= curFY-2; fy--) {
+    h += '<option value="'+fy+'"'+(fy===curFY?' selected':'')+'>FY'+fy+' (Jul '+(fy-1)+' &ndash; Jun '+fy+')</option>';
+  }
+  h += '</select></div></div>';
+
+  h += '<div id="fyFundingContent"></div></div>';
+  sh('pageContainer', h);
+  el('fySelect').addEventListener('change', function(){ renderFYFundingTable(parseInt(this.value)); });
+  renderFYFundingTable(curFY);
+}
+
+function renderFYFundingTable(fy) {
+  var totalFTE = FTE_ANNUAL;
+  var staffRows = STAFF.map(function(name) {
+    var records = getStaffFYFunding(name, fy);
+    var totalPct = records.reduce(function(a,r){return a+Number(r.pctEffort||0);},0);
+    var totalAmt = records.reduce(function(a,r){return a+Number(r.annualAmount||0);},0);
+    var rate = RATES[name] || 66.08;
+    var maxAmt = calcAnnualBilling(100, rate);
+    var coveragePct = totalPct;
+    return {name:name, records:records, totalPct:coveragePct, totalAmt:totalAmt, maxAmt:maxAmt, rate:rate};
+  }).filter(function(r){ return r.records.length > 0 || r.totalPct > 0; });
+
+  // Also include all staff even if no records
+  var allStaffRows = STAFF.map(function(name) {
+    var records = getStaffFYFunding(name, fy);
+    var totalPct = records.reduce(function(a,r){return a+Number(r.pctEffort||0);},0);
+    var totalAmt = records.reduce(function(a,r){return a+Number(r.annualAmount||0);},0);
+    var rate = RATES[name] || 66.08;
+    var maxAmt = calcAnnualBilling(100, rate);
+    return {name:name, records:records, totalPct:totalPct, totalAmt:totalAmt, maxAmt:maxAmt, rate:rate};
+  });
+
+  var totalFunded = allStaffRows.filter(function(r){return r.totalPct>=90;}).length;
+  var totalPartial = allStaffRows.filter(function(r){return r.totalPct>0&&r.totalPct<90;}).length;
+  var totalUnfunded = allStaffRows.filter(function(r){return r.totalPct===0;}).length;
+  var grandTotal = allStaffRows.reduce(function(a,r){return a+r.totalAmt;},0);
+
+  var h = '<div class="metrics" style="margin-bottom:1.25rem">';
+  h += '<div class="metric"><div class="metric-label">Fully funded (&ge;90%)</div><div class="metric-value mv-green">'+totalFunded+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">Partially funded</div><div class="metric-value mv-amber">'+totalPartial+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">No FY funding</div><div class="metric-value mv-red">'+totalUnfunded+'</div></div>';
+  h += '<div class="metric"><div class="metric-label">Total FY commitment</div><div class="metric-value mv-blue">'+fmtMoney(grandTotal)+'</div></div>';
+  h += '</div>';
+
+  h += '<div style="overflow-x:auto"><table><thead><tr>';
+  h += '<th>Staff member</th><th>Rate/hr</th><th>FY'+fy+' effort</th><th>Coverage bar</th><th>Annual amount</th><th>Max (100% FTE)</th><th>Projects</th>';
+  h += '</tr></thead><tbody>';
+
+  allStaffRows.sort(function(a,b){return b.totalPct-a.totalPct;}).forEach(function(r) {
+    var pct = Math.min(100, r.totalPct);
+    var col = pct >= 90 ? '#639922' : pct >= 50 ? '#EF9F27' : pct > 0 ? '#E87722' : '#ccc';
+    var bg  = pct >= 90 ? '#EAF3DE' : pct >= 50 ? '#FAEEDA' : pct > 0 ? '#FFF0E6' : '#f9f9f9';
+    h += '<tr>';
+    h += '<td style="font-weight:600"><div style="display:flex;align-items:center;gap:8px"><div class="initials">'+initials(r.name)+'</div>'+r.name+'</div></td>';
+    h += '<td style="font-size:12px;color:#666">$'+r.rate.toFixed(2)+'/hr</td>';
+    h += '<td><span style="font-size:13px;font-weight:700;background:'+bg+';color:'+col+';padding:3px 10px;border-radius:20px">'+r.totalPct+'%</span></td>';
+    h += '<td><div style="display:flex;align-items:center;gap:8px"><div style="width:100px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden"><div style="width:'+pct+'%;height:100%;background:'+col+';border-radius:4px"></div></div><span style="font-size:11px;color:#888">'+pct+'%</span></div></td>';
+    h += '<td style="font-weight:700;color:#3B6D11">'+fmtMoney(r.totalAmt)+'</td>';
+    h += '<td style="font-size:12px;color:#888">'+fmtMoney(r.maxAmt)+'</td>';
+    h += '<td style="font-size:12px">';
+    if (r.records.length) {
+      r.records.forEach(function(rec){
+        h += '<div style="margin-bottom:2px;color:#555">'+rec.projectName.substring(0,35)+(rec.projectName.length>35?'&hellip;':'')+'<span style="color:#185FA5;margin-left:4px;font-weight:600">'+rec.pctEffort+'%</span></div>';
+      });
+    } else {
+      h += '<span style="color:#ccc;font-style:italic">No FY'+fy+' funding confirmed</span>';
+    }
+    h += '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  sh('fyFundingContent', h);
+}
+
+
 function showLogin() {
   var staffOpts = '<option value="">Select your name...</option>';
   STAFF.forEach(function(s) {
@@ -662,7 +750,7 @@ function renderNav(){
     {label:"Overview",   color:"#185FA5",bg:"#E6F1FB",border:"#b5d4f4",pages:["availability","dashboard","pidashboard","staffskills","staffview"]},
     {label:"Projects",   color:"#3B6D11",bg:"#EAF3DE",border:"#a8d470",pages:["allprojects","editproject","intake","myprojects","mystatus"]},
     {label:"Hours",      color:"#854F0B",bg:"#FAEEDA",border:"#f5c97a",pages:["loghours","myhours"]},
-    {label:"Reporting",  color:"#0F6E56",bg:"#E1F5EE",border:"#5dcaa5",pages:["billing","facultydb","facultyreporting"]},
+    {label:"Reporting",  color:"#0F6E56",bg:"#E1F5EE",border:"#5dcaa5",pages:["billing","facultydb","facultyreporting","stafffunding"]},
     {label:"Management", color:"#3C3489",bg:"#EEEDFE",border:"#afa9ec",pages:["approvals","budgets","fund"]},
     {label:"Profile",    color:"#5F5E5A",bg:"#F1EFE8",border:"#d3d1c7",pages:["myprofile"]}
   ];
@@ -731,7 +819,7 @@ function renderPage(p) {
     approvals: buildApprovals, editproject: buildEditProject,
     intake: buildIntake, mystatus: buildMyStatus,
     myprofile: buildMyProfile, staffskills: buildStaffSkills,
-    availability: buildAvailability, facultydb: buildFacultyDB
+    availability: buildAvailability, facultydb: buildFacultyDB, stafffunding: buildStaffFYFunding
   };
   try {
     (fns[p] || buildIntake)();
@@ -944,6 +1032,7 @@ function buildDashboard() {
     sh('pageContainer',h);
     document.querySelectorAll('[data-detail]').forEach(function(row){row.addEventListener('click',function(){showDetail(this.getAttribute('data-detail'));});});
     var ga=el('gotoApprovals');if(ga)ga.addEventListener('click',function(e){e.preventDefault();renderPage('approvals');});
+  var gf=el('gotoFunding');if(gf)gf.addEventListener('click',function(e){e.preventDefault();renderPage('stafffunding');});
     return;
   }
 
@@ -963,6 +1052,20 @@ function buildDashboard() {
   var pendingAppr = approvals.filter(function(a){return a.status==='pending';}).length;
   var pendingSkill = skillRequests.filter(function(r){return r.status==='pending';}).length;
   var pendingFund = projects.filter(function(p){return p.fundManagerStatus==='pending';}).length;
+
+  // FY funding coverage
+  var curFY = new Date().getMonth() >= 6 ? new Date().getFullYear()+1 : new Date().getFullYear();
+  var staffFullyFunded = STAFF.filter(function(n){
+    var cov = getFYCoverage(n, curFY);
+    return cov.pct >= 90;
+  }).length;
+  var staffPartialFunded = STAFF.filter(function(n){
+    var cov = getFYCoverage(n, curFY);
+    return cov.pct > 0 && cov.pct < 90;
+  }).length;
+  var totalFYCommitment = STAFF.reduce(function(a,n){
+    return a + getFYCoverage(n, curFY).amount;
+  }, 0);
 
   // Staff utilization
   var staffWithHrs = {};
@@ -1039,9 +1142,28 @@ function buildDashboard() {
     {label:'Oversubscribed',val:staffOver,col:staffOver>0?'#A32D2D':'#3B6D11',bg:staffOver>0?'#FCEBEB':'#EAF3DE',page:'availability'},
     {label:'Low utilization',val:staffUnder,col:staffUnder>3?'#854F0B':'#3B6D11',bg:staffUnder>3?'#FAEEDA':'#EAF3DE',page:'availability'},
   ];
+  var fyCards=[
+    {label:'FY'+curFY+' fully funded',val:staffFullyFunded,col:'#3B6D11',bg:'#EAF3DE',page:'stafffunding'},
+    {label:'Partially funded',val:staffPartialFunded,col:'#854F0B',bg:'#FAEEDA',page:'stafffunding'},
+    {label:'FY'+curFY+' commitment',val:fmtMoney(totalFYCommitment),col:'#185FA5',bg:'#E6F1FB',page:'stafffunding'},
+  ];
   staffCards.forEach(function(c){
     h+='<div style="background:'+c.bg+';border-radius:10px;padding:14px 16px;cursor:pointer" data-goto="'+c.page+'">';
     h+='<div style="font-size:28px;font-weight:800;color:'+c.col+'">'+c.val+'</div>';
+    h+='<div style="font-size:11px;color:'+c.col+';opacity:.75;margin-top:3px;font-weight:500">'+c.label+'</div></div>';
+  });
+  h+='</div>';
+  // FY Funding sub-row
+  h+='<div style="height:1px;background:#f0f0f0;margin:12px 0"></div>';
+  h+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+  h+='<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="#3B6D11" stroke-width="2"/><path d="M2 10h20" stroke="#3B6D11" stroke-width="1.5"/><circle cx="12" cy="15" r="2" fill="#3B6D11"/></svg>';
+  h+='<span style="font-size:11px;font-weight:700;color:#3B6D11;text-transform:uppercase;letter-spacing:.06em">FY'+curFY+' funding coverage</span>';
+  h+='<a href="#" id="gotoFunding" style="font-size:11px;color:#185FA5;margin-left:4px">View details &rarr;</a>';
+  h+='</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px">';
+  fyCards.forEach(function(c){
+    h+='<div style="background:'+c.bg+';border-radius:10px;padding:12px 16px;cursor:pointer" data-goto="'+c.page+'">';
+    h+='<div style="font-size:22px;font-weight:800;color:'+c.col+'">'+c.val+'</div>';
     h+='<div style="font-size:11px;color:'+c.col+';opacity:.75;margin-top:3px;font-weight:500">'+c.label+'</div></div>';
   });
   h+='</div></div>';
@@ -1071,6 +1193,7 @@ function buildDashboard() {
     card.addEventListener('click', function(){ renderPage(this.getAttribute('data-goto')); });
   });
   var ga=el('gotoApprovals');if(ga)ga.addEventListener('click',function(e){e.preventDefault();renderPage('approvals');});
+  var gf=el('gotoFunding');if(gf)gf.addEventListener('click',function(e){e.preventDefault();renderPage('stafffunding');});
   var gs=el('gotoSkills');if(gs)gs.addEventListener('click',function(e){e.preventDefault();renderPage('staffskills');});
   var gp=el('gotoProjects');if(gp)gp.addEventListener('click',function(e){e.preventDefault();renderPage('allprojects');});
 }
@@ -2357,53 +2480,164 @@ function buildFundPIGroup(list) {
   return h;
 }
 
-function openRenewalModal(pid, fy) {
-  var p = projects.filter(function(x){return x.id===pid;})[0];
-  if (!p) return;
-  var endDate = new Date(p.end);
-  var newEnd = new Date(endDate);
-  newEnd.setFullYear(newEnd.getFullYear()+1);
-  var newEndStr = newEnd.toISOString().split('T')[0];
-  var billed = projBill(p.id);
+// ── FY FUNDING HELPERS ─────────────────────────────────────────────────────
+var FTE_ANNUAL = 1800; // 1800 hrs = 100% FTE
 
-  var h = '<div class="modal-title">Renew project &mdash; '+p.project+'</div>';
-  h += '<div style="background:#FAEEDA;border-radius:8px;padding:12px 14px;margin-bottom:1rem;font-size:13px;color:#854F0B">';
-  h += '<strong>This project expires on '+fmtDate(p.end)+'.</strong> Confirm renewal to extend the period of performance and flag for re-invoicing.</div>';
-  h += '<div class="form-grid" style="margin-bottom:1rem">';
-  h += '<div class="form-group"><label>Current end date</label><input type="date" id="ren_oldEnd" value="'+p.end+'" disabled style="background:#f5f5f5;color:#888"></div>';
-  h += '<div class="form-group"><label>New end date *</label><input type="date" id="ren_newEnd" value="'+newEndStr+'"></div>';
-  h += '<div class="form-group"><label>New total value ($)</label><input type="number" id="ren_value" placeholder="e.g. 50000" value="'+(p.totalValue||'')+'"></div>';
-  h += '<div class="form-group"><label>New FAU (if changed)</label><input type="text" id="ren_fau" value="'+(p.fau||'')+'"></div>';
-  h += '<div class="form-group full"><label>Renewal notes</label><textarea id="ren_notes" placeholder="Any notes about the renewal terms..."></textarea></div>';
-  h += '</div>';
-  h += '<div style="background:#EAF3DE;border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:#3B6D11">A new invoice will be created for this renewal period. Current billed amount: <strong>'+fmtMoney(billed)+'</strong></div>';
-  h += '<div class="actions">';
-  h += '<button class="btn" id="renCancelBtn">Cancel</button>';
-  h += '<button class="btn btn-primary" id="renConfirmBtn" data-fy="'+(fy||'')+'" data-pid="'+pid+'">Confirm FY'+(fy?parseInt(fy)+1:'')+' renewal</button>';
-  h += '</div>';
-  openModal(h);
-  el('renCancelBtn').addEventListener('click', closeModal);
-  el('renConfirmBtn').addEventListener('click', function(){
-    var fy = this.getAttribute('data-fy') || '';
-    var newEnd = gv('ren_newEnd');
-    if (!newEnd) { alert('Please enter a new end date.'); return; }
-    p.end = newEnd;
-    p.fau = gv('ren_fau') || p.fau;
-    var newVal = parseFloat(gv('ren_value'));
-    if (newVal) p.totalValue = newVal;
-    p.invoiceStatus = 'pending';
-    p.fundManagerStatus = 'pending';
-    p.projectStatus = 'Active Project';
-    var fyYr = this.getAttribute('data-fy') || '';
-    var renewNote = 'FY'+(fyYr?parseInt(fyYr)+1:'')+' RENEWED on '+new Date().toISOString().split('T')[0]+'. New end: '+newEnd+(gv('ren_notes')?'\nNotes: '+gv('ren_notes'):'');
-    p.notes = p.notes ? p.notes+'\n\n'+renewNote : renewNote;
-    saveRecord('update', projectToRow(p), 'Sheet1');
-    closeModal();
-    buildFund();
+function calcAnnualBilling(pct, rate) {
+  // pct is 0-100, rate is hourly
+  return Math.round((pct / 100) * FTE_ANNUAL * rate * 100) / 100;
+}
+
+function getStaffFYFunding(staffName, fy) {
+  // fy = e.g. 2027
+  return fyFunding.filter(function(r) {
+    return r.staffName === staffName && Number(r.fiscalYear) === fy;
   });
 }
 
-// ── UPDATED INVOICE: include staff breakdown ──────────────────────────────
+function getFYCoverage(staffName, fy) {
+  var records = getStaffFYFunding(staffName, fy);
+  var totalPct = records.reduce(function(a,r){return a+Number(r.pctEffort||0);},0);
+  var totalAmt = records.reduce(function(a,r){return a+Number(r.annualAmount||0);},0);
+  return {pct:totalPct, amount:totalAmt, records:records};
+}
+
+function saveFYFundingRecord(rec) {
+  // Upsert: find existing record for same staff+project+fy, update or add
+  var existing = fyFunding.filter(function(r){
+    return r.staffName===rec.staffName && r.projectId===rec.projectId && Number(r.fiscalYear)===Number(rec.fiscalYear);
+  });
+  if (existing.length) {
+    existing[0].pctEffort = rec.pctEffort;
+    existing[0].annualAmount = rec.annualAmount;
+    existing[0].confirmedDate = rec.confirmedDate;
+    existing[0].fau = rec.fau;
+    existing[0].notes = rec.notes;
+    return saveRecord('update', existing[0], 'fyFunding');
+  } else {
+    rec.id = String(Date.now());
+    fyFunding.push(rec);
+    return saveRecord('add', rec, 'fyFunding');
+  }
+}
+
+// ── RENEWAL MODAL (updated with full project info + FY funding) ────────────
+function openRenewalModal(pid, fy) {
+  var p = projects.filter(function(x){return x.id===pid;})[0];
+  if (!p) return;
+  var fyNum = fy ? parseInt(fy)+1 : new Date().getFullYear()+1;
+  var fyLabel = 'FY' + fyNum;
+
+  // Calculate per-staff annual billing
+  var teamBilling = [];
+  var totalAnnual = 0;
+  (p.team||[]).forEach(function(m) {
+    if (!m.pct) return;
+    var rate = RATES[m.name] || 66.08;
+    var annual = calcAnnualBilling(m.pct, rate);
+    totalAnnual += annual;
+    teamBilling.push({name:m.name, pct:m.pct, rate:rate, annual:annual, lead:m.lead||false});
+  });
+
+  var h = '<div class="modal-title">' + fyLabel + ' Renewal &mdash; ' + p.project + '</div>';
+
+  // Project summary
+  h += '<div style="background:#f9f9f9;border-radius:8px;padding:12px 14px;margin-bottom:1rem;font-size:13px">';
+  h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
+  h += '<div><span style="color:#888;font-size:11px">PI</span><div style="font-weight:600">'+p.pi+'</div></div>';
+  h += '<div><span style="color:#888;font-size:11px">Department</span><div>'+( p.department||'—')+'</div></div>';
+  h += '<div><span style="color:#888;font-size:11px">Grant #</span><div>'+(p.grant||'—')+'</div></div>';
+  h += '<div><span style="color:#888;font-size:11px">Current FAU</span><div>'+(p.fau||'—')+'</div></div>';
+  h += '<div><span style="color:#888;font-size:11px">Project period</span><div>'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+'</div></div>';
+  h += '<div><span style="color:#888;font-size:11px">Renewal fiscal year</span><div style="font-weight:700;color:#185FA5">'+fyLabel+' (Jul '+( fyNum-1)+' &rarr; Jun '+fyNum+')</div></div>';
+  h += '</div></div>';
+
+  // Staff effort & billing table
+  h += '<div style="font-size:12px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Staff assignments &amp; '+fyLabel+' billing</div>';
+  if (teamBilling.length) {
+    h += '<div style="border:1px solid #e5e5e5;border-radius:8px;overflow:hidden;margin-bottom:1rem">';
+    h += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr;padding:7px 12px;background:#f0f0f0;font-size:11px;font-weight:700;color:#666">';
+    h += '<div>Staff member</div><div>% Effort</div><div>Rate/hr</div><div>Annual billing</div></div>';
+    teamBilling.forEach(function(m) {
+      h += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr;padding:9px 12px;border-top:1px solid #f5f5f5;align-items:center">';
+      h += '<div style="display:flex;align-items:center;gap:7px"><div class="initials">'+initials(m.name)+'</div><span style="font-size:13px;font-weight:500">'+m.name+'</span>'+(m.lead?'<span class="badge badge-lead">Lead</span>':'')+'</div>';
+      h += '<div style="font-weight:700;color:#185FA5">'+m.pct+'%</div>';
+      h += '<div style="color:#666">$'+m.rate.toFixed(2)+'/hr</div>';
+      h += '<div style="font-weight:700;color:#3B6D11">'+fmtMoney(m.annual)+'</div>';
+      h += '</div>';
+    });
+    h += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr 1.5fr;padding:9px 12px;border-top:2px solid #e5e5e5;background:#f9f9f9">';
+    h += '<div style="font-weight:700;grid-column:1/4">Total annual DOMStat billing</div>';
+    h += '<div style="font-weight:800;font-size:14px;color:#3B6D11">'+fmtMoney(totalAnnual)+'</div></div>';
+    h += '</div>';
+  } else {
+    h += '<div class="alert alert-warn" style="margin-bottom:1rem">No staff with % effort assigned. Please assign team members before processing renewal.</div>';
+  }
+
+  // Renewal fields
+  h += '<div class="form-grid">';
+  h += '<div class="form-group"><label>New FAU (if changed)</label><input id="ren_fau" value="'+(p.fau||'')+'"></div>';
+  h += '<div class="form-group"><label>New annual value ($)</label><input type="number" id="ren_value" value="'+Math.round(totalAnnual)+'" placeholder="'+Math.round(totalAnnual)+'"></div>';
+  h += '<div class="form-group"><label>New end date (if extended)</label><input type="date" id="ren_newEnd" value="'+(p.end||'')+'"></div>';
+  h += '<div class="form-group"><label>Fiscal year</label><input type="text" value="'+fyLabel+'" disabled style="background:#f5f5f5;color:#888"></div>';
+  h += '<div class="form-group full"><label>Notes</label><textarea id="ren_notes" placeholder="Any notes about this renewal..."></textarea></div>';
+  h += '</div>';
+
+  h += '<div class="actions">';
+  h += '<button class="btn" id="renCancelBtn">Cancel</button>';
+  h += '<button class="btn btn-primary" id="renConfirmBtn" data-fy="'+(fy||'')+'" data-pid="'+pid+'">Confirm '+fyLabel+' renewal</button>';
+  h += '</div>';
+  openModal(h);
+
+  el('renCancelBtn').addEventListener('click', closeModal);
+  el('renConfirmBtn').addEventListener('click', function() {
+    var fy2 = this.getAttribute('data-fy') || '';
+    var newEnd = document.getElementById('ren_newEnd').value;
+    var newFau = document.getElementById('ren_fau').value;
+    var newVal = parseFloat(document.getElementById('ren_value').value) || totalAnnual;
+    var notes = document.getElementById('ren_notes').value;
+    var fyN = fy2 ? parseInt(fy2)+1 : fyNum;
+
+    // Update project
+    if (newEnd) p.end = newEnd;
+    if (newFau) p.fau = newFau;
+    if (newVal) p.totalValue = (Number(p.totalValue)||0) + newVal;
+    p.invoiceStatus = 'pending';
+    p.fundManagerStatus = 'pending';
+    p.projectStatus = 'Active Project';
+    var renewNote = 'FY'+fyN+' RENEWED on '+new Date().toISOString().split('T')[0]+
+      '. Annual amount: '+fmtMoney(newVal)+(notes?'\nNotes: '+notes:'');
+    p.notes = p.notes ? p.notes+'\n\n'+renewNote : renewNote;
+    saveRecord('update', projectToRow(p), 'Sheet1');
+
+    // Save FY funding records for each staff member
+    var confirmDate = new Date().toISOString().split('T')[0];
+    var saves = teamBilling.map(function(m) {
+      return saveFYFundingRecord({
+        staffName: m.name,
+        projectId: p.id,
+        projectName: p.project,
+        pi: p.pi,
+        fiscalYear: fyN,
+        pctEffort: m.pct,
+        annualAmount: m.annual,
+        fau: newFau || p.fau || '',
+        confirmedDate: confirmDate,
+        notes: notes || ''
+      });
+    });
+
+    Promise.all(saves).then(function() {
+      closeModal();
+      // Reload fyFunding to reflect new records
+      fetchSheet('fyFunding').then(function(d){
+        if(Array.isArray(d)) fyFunding=d.filter(function(r){return r.id;});
+        buildFund();
+      });
+    });
+  });
+}
+
 function sendInvoiceForPI(piName, piEmail) {
   var piProjects = projects.filter(function(p){ return p.pi === piName; });
   var fmName = '', fmEmail = '';
