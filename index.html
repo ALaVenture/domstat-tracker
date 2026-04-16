@@ -2126,6 +2126,12 @@ function buildBudgets(){
 
 // ── FUND MANAGER QUEUE (rebuilt) ──────────────────────────────────────────
 function buildFund() {
+  console.log('FM: hoursData.length='+hoursData.length+' projects.length='+projects.length);
+  if (hoursData.length > 0) {
+    console.log('FM: sample hour:', JSON.stringify(hoursData[0]));
+    var testBill = projBill(hoursData[0].projectId);
+    console.log('FM: projBill for first hour projectId='+hoursData[0].projectId+' result='+testBill);
+  }
   var today = new Date(); today.setHours(0,0,0,0);
   var SIXTY_DAYS = 60 * 24 * 60 * 60 * 1000;
 
