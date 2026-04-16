@@ -1301,29 +1301,76 @@ function refreshLogProjects(staffName) {
   if (!staffName) { sh('logProjectsSection','<div class="empty">Select a staff member above.</div>'); return; }
   var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === staffName; }); });
   if (!myP.length) { sh('logProjectsSection','<div class="alert alert-info">' + staffName + ' is not assigned to any projects.</div>'); return; }
-  var h = '';
+
+  // Group by PI
+  var byPI = {}, piOrder = [];
   myP.forEach(function(p) {
-    h += '<div class="card" style="margin-bottom:12px;padding:1rem">';
-    h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px">';
-    h += '<div><span style="font-weight:600">' + p.project + '</span><span style="font-size:12px;color:#888;margin-left:8px">' + p.pi + (p.department?' &middot; '+p.department:'') + '</span></div>';
-    h += '<div style="display:flex;align-items:center;gap:8px"><label style="font-size:12px">Status:</label><select id="ps_' + p.id + '" style="width:auto;font-size:12px;padding:4px 8px;border:1px solid #ccc;border-radius:6px">';
-    PROJ_STATUSES.forEach(function(s) { h += '<option' + (p.projectStatus===s?' selected':'') + '>' + s + '</option>'; });
-    h += '</select></div></div>';
-    h += '<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666"><div>Service type</div><div>Hours</div><div>Billing</div></div>';
-    SVCS.forEach(function(svc,si) {
-      h += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:8px;border-bottom:1px solid #f0f0f0;align-items:center">';
-      h += '<div style="font-size:13px">' + svc + '</div>';
-      h += '<div><input type="number" id="hrs_' + p.id + '_' + si + '" min="0" step="0.5" placeholder="0" style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px" data-proj="' + p.id + '" data-si="' + si + '" class="hrsInput"></div>';
-      h += '<div style="font-size:13px;color:#666" id="bill_' + p.id + '_' + si + '">&mdash;</div></div>';
-    });
-    h += '<div style="text-align:right;padding:8px;font-size:12px;color:#666">Total: <strong id="pWT_' + p.id + '" style="color:#185FA5">0.0 hrs &mdash; ' + fmtMoney(0) + '</strong></div></div>';
+    if (!byPI[p.pi]) { byPI[p.pi] = []; piOrder.push(p.pi); }
+    byPI[p.pi].push(p);
   });
+  piOrder.sort();
+
+  var h = '';
+  piOrder.forEach(function(pi) {
+    var piProjs = byPI[pi];
+
+    // PI header
+    h += '<div style="margin-bottom:1.25rem">';
+    h += '<div style="display:flex;align-items:center;gap:10px;padding:10px 16px;background:#0a1628;border-radius:10px 10px 0 0">';
+    h += '<div style="width:30px;height:30px;border-radius:50%;background:#1a6fcf;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(pi)+'</div>';
+    h += '<div style="font-weight:700;font-size:13px;color:#fff">'+pi+'</div>';
+    h += '<div style="font-size:11px;color:rgba(255,255,255,.5);margin-left:4px">&middot; '+piProjs.length+' project'+(piProjs.length!==1?'s':'')+'</div>';
+    h += '</div>';
+
+    piProjs.forEach(function(p, idx) {
+      var isLast = idx === piProjs.length-1;
+      h += '<div style="border:1px solid #e5e5e5;border-top:none;'+(isLast?'border-radius:0 0 10px 10px;':'')+'background:#fff;padding:14px 16px;margin-bottom:0">';
+
+      // Project header with status selector
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px">';
+      h += '<div>';
+      h += '<span style="font-weight:600;font-size:13px">'+p.project+'</span>';
+      h += '<span class="'+typeBadge(p.type)+'" style="margin-left:8px">'+typeLabel(p.type)+'</span>';
+      if (p.department) h += '<span style="font-size:11px;color:#888;margin-left:6px">'+p.department+'</span>';
+      h += '</div>';
+      h += '<div style="display:flex;align-items:center;gap:8px">';
+      h += '<label style="font-size:12px;color:#888">Status:</label>';
+      h += '<select id="ps_'+p.id+'" style="width:auto;font-size:12px;padding:4px 8px;border:1px solid #ccc;border-radius:6px">';
+      PROJ_STATUSES.forEach(function(st) { h += '<option'+(p.projectStatus===st?' selected':'')+'>'+st+'</option>'; });
+      h += '</select></div></div>';
+
+      // Scope/next steps if available
+      if (p.scopeSummary) {
+        h += '<div style="font-size:12px;color:#555;background:#f9f9f9;padding:6px 10px;border-radius:6px;margin-bottom:8px;line-height:1.5">';
+        h += '<span style="font-weight:600;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Scope:</span>'+p.scopeSummary+'</div>';
+      }
+
+      // Hours grid header
+      h += '<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666;margin-top:4px">';
+      h += '<div>Service type</div><div>Hours</div><div>Billing</div></div>';
+
+      SVCS.forEach(function(svc, si) {
+        h += '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;padding:8px;border-bottom:1px solid #f0f0f0;align-items:center;background:#fff">';
+        h += '<div style="font-size:13px">'+svc+'</div>';
+        h += '<div><input type="number" id="hrs_'+p.id+'_'+si+'" min="0" step="0.5" placeholder="0" style="width:80px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px" data-proj="'+p.id+'" data-si="'+si+'" class="hrsInput"></div>';
+        h += '<div style="font-size:13px;color:#666" id="bill_'+p.id+'_'+si+'">&mdash;</div></div>';
+      });
+      h += '<div style="text-align:right;padding:8px;font-size:12px;color:#666;background:#fafafa;border-radius:0 0 6px 6px">Total: <strong id="pWT_'+p.id+'" style="color:#185FA5">0.0 hrs &mdash; $0.00</strong></div>';
+      h += '</div>';
+    });
+    h += '</div>';
+  });
+
   sh('logProjectsSection', h);
+
   var staffName2 = isAdmin() ? gv('logStaff') : session.name;
   document.querySelectorAll('.hrsInput').forEach(function(inp) {
-    inp.addEventListener('input', function() { calcBilling(this.getAttribute('data-proj'), parseInt(this.getAttribute('data-si')), staffName2); });
+    inp.addEventListener('input', function() {
+      calcBilling(this.getAttribute('data-proj'), parseInt(this.getAttribute('data-si')), staffName2);
+    });
   });
 }
+
 
 function calcBilling(projId, svcIdx, staffName) {
   var rate = RATES[staffName] || 66.08;
