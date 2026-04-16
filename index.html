@@ -206,6 +206,28 @@ function fmtHrs(n){return(n===null||n===undefined||n==="")?0:Number(n).toFixed(1
 function typeLabel(t){return{pct:"% Effort",hr:"Hourly Recharge",ctsi:"CTSI"}[t]||t;}
 function typeBadge(t){return "badge badge-"+{pct:"pct",hr:"hr",ctsi:"ctsi"}[t];}
 function statusBadge(s){return "badge badge-"+{active:"active",pending:"pending",upcoming:"upcoming",winding:"winding"}[s]||"badge";}
+function getProjectCategory(p) {
+  // Planned: future start date OR New Project status
+  var today = new Date(); today.setHours(0,0,0,0);
+  var startDate = p.start ? new Date(p.start) : null;
+  if (p.projectStatus === 'Project Complete') return 'complete';
+  if (p.projectStatus === 'New Project' || (startDate && startDate > today)) return 'planned';
+  if (startDate && startDate <= today) return 'current';
+  return 'current';
+}
+
+function getProjectCategoryLabel(cat) {
+  return {current:'Current',planned:'Planned',complete:'Complete'}[cat]||'Current';
+}
+
+function getProjectCategoryColor(cat) {
+  return {current:'#3B6D11',planned:'#185FA5',complete:'#5F5E5A'}[cat]||'#3B6D11';
+}
+
+function getProjectCategoryBg(cat) {
+  return {current:'#EAF3DE',planned:'#E6F1FB',complete:'#F1EFE8'}[cat]||'#EAF3DE';
+}
+
 function projStatusBadge(s){return "badge "+{"New Project":"badge-newproj","Active Project":"badge-activeproj","Project Complete":"badge-completeproj"}[s];}
 function daysLeft(d){return Math.ceil((new Date(d)-new Date())/86400000);}
 function getQ(d){if(!d)return null;var m=new Date(d).getMonth()+1;return m<=3?"Q1":m<=6?"Q2":m<=9?"Q3":"Q4";}
@@ -213,6 +235,7 @@ function getYr(d){if(!d)return null;return new Date(d).getFullYear();}
 function curQ(){return getQ(new Date().toISOString());}
 function curYr(){return new Date().getFullYear();}
 function parseTeam(r){if(!r)return[];try{return JSON.parse(r);}catch(e){return[];}}
+function tryParseJSON(str,fallback){if(!str||str==='')return fallback;try{return JSON.parse(str);}catch(e){return fallback;}}
 function projHrs(id){return hoursData.filter(function(h){return h.projectId===id;}).reduce(function(a,h){return a+h.hours;},0);}
 function projBill(id){return hoursData.filter(function(h){return h.projectId===id;}).reduce(function(a,h){return a+h.billingAmount;},0);}
 function isAdmin(){return["admin","director","assocdir"].indexOf(session.role)>-1;}
@@ -265,20 +288,34 @@ function rowToProject(r){
     fundsReceived:(r.fundsReceived!==""&&r.fundsReceived!=null)?Number(r.fundsReceived):null,
     budgetTarget:(r.budgetTarget!==""&&r.budgetTarget!=null)?Number(r.budgetTarget):null,
     status:r.status||"active",fundManagerStatus:r.fundManagerStatus||"pending",
+    invoiceStatus:r.invoiceStatus||"pending",
     projectStatus:r.projectStatus||"Active Project",
     piEmail:r.piEmail||"",fmName:r.fmName||"",fmEmail:r.fmEmail||"",piPin:r.piPin||"",
     notes:r.notes||"",submittedBy:r.submittedBy||"",submittedDate:r.submittedDate||"",
-    lead:r.lead||"",team:parseTeam(r.team)};
+    lead:r.lead||"",team:parseTeam(r.team),
+    confirmedServices:tryParseJSON(r.confirmedServices,[]),
+    scopeSummary:r.scopeSummary||"",
+    estimatedHours:(r.estimatedHours!==""&&r.estimatedHours!=null)?Number(r.estimatedHours):null,
+    projectStage:r.projectStage||"Scoping",
+    internalNotes:r.internalNotes||"",
+    nextSteps:r.nextSteps||"",
+    scopeOther:r.scopeOther||"",
+    scopeUpdatedBy:r.scopeUpdatedBy||"",
+    scopeUpdatedDate:r.scopeUpdatedDate||""};
 }
 function projectToRow(p){
   return{id:p.id,pi:p.pi,project:p.project,type:p.type,department:p.department||"",
     grant:p.grant||"",fau:p.fau||"",start:p.start||"",end:p.end||"",
     totalValue:p.totalValue!=null?p.totalValue:"",fundsReceived:p.fundsReceived!=null?p.fundsReceived:"",
     budgetTarget:p.budgetTarget!=null?p.budgetTarget:"",status:p.status,
-    fundManagerStatus:p.fundManagerStatus,projectStatus:p.projectStatus||"Active Project",
+    fundManagerStatus:p.fundManagerStatus,invoiceStatus:p.invoiceStatus||"pending",projectStatus:p.projectStatus||"Active Project",
     piEmail:p.piEmail||"",fmName:p.fmName||"",fmEmail:p.fmEmail||"",piPin:p.piPin||"",
     notes:p.notes||"",submittedBy:p.submittedBy,submittedDate:p.submittedDate,
-    lead:p.lead||"",team:JSON.stringify(p.team||[])};
+    lead:p.lead||"",team:JSON.stringify(p.team||[]),
+    confirmedServices:JSON.stringify(p.confirmedServices||[]),scopeSummary:p.scopeSummary||"",
+    estimatedHours:p.estimatedHours!=null?p.estimatedHours:"",projectStage:p.projectStage||"Scoping",
+    internalNotes:p.internalNotes||"",nextSteps:p.nextSteps||"",scopeOther:p.scopeOther||"",
+    scopeUpdatedBy:p.scopeUpdatedBy||"",scopeUpdatedDate:p.scopeUpdatedDate||""};
 }
 function rowToHours(r){
   return{id:String(r.id||""),projectId:String(r.projectId||""),staffName:r.staffName||"",
@@ -334,7 +371,19 @@ function loadData(manual){
   Promise.all([p0,p1,p2,p3,p4,p5,p6,p7]).then(function(results){
     var pd=results[0],hd=results[1],ad=results[2],prfd=results[3],srd=results[4],fhd=results[5],fpd=results[6],fgd=results[7];
     if(Array.isArray(pd)){
-      projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;});
+      try {
+        projects=pd.map(rowToProject).filter(function(p){return p.id&&p.project;});
+        console.log('DOMSTAT projects loaded:',projects.length);
+      } catch(mapErr) {
+        console.error('DOMSTAT rowToProject error:',mapErr.message);
+        // Try row by row to find bad row
+        projects=[];
+        pd.forEach(function(r,i){
+          try{var p=rowToProject(r);if(p.id&&p.project)projects.push(p);}
+          catch(e2){console.error('DOMSTAT bad row',i,r.id,e2.message);}
+        });
+        console.log('DOMSTAT fallback projects:',projects.length);
+      }
       if(projects.length){
         nextIds.proj=Math.max.apply(null,projects.map(function(p){return Number(p.id)||0;}).concat([0]))+1;
       }
@@ -756,8 +805,41 @@ function showDetail(id) {
   if (canFunds && p.budgetTarget != null) h += '<div><span style="color:#666">Budget target:</span> ' + fmtMoney(p.budgetTarget) + '</div>';
   if (canFunds) h += '<div><span style="color:#666">Billed to date:</span> <strong style="color:#3B6D11">' + fmtMoney(projBill(p.id)) + '</strong></div>';
   h += '</div>';
-  h += '<div style="margin-bottom:1rem"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Team</div>';
-  h += teamPills(p) || '<div style="font-size:12px;color:#999">Unassigned</div>';
+  // Build effort summary
+  var totalEffort = 0;
+  (p.team||[]).forEach(function(m){ totalEffort += (Number(m.pct)||0); });
+  h += '<div style="margin-bottom:1rem">';
+  h += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">';
+  h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase">Team &amp; effort</div>';
+  if (totalEffort > 0) h += '<div style="font-size:12px;font-weight:700;background:#E6F1FB;color:#185FA5;padding:3px 10px;border-radius:20px">Total DOMStat effort: '+totalEffort+'%</div>';
+  h += '</div>';
+  if ((p.team||[]).length) {
+    (p.team||[]).forEach(function(m) {
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-radius:8px;background:'+(m.lead?'#f0f4ff':'#f9f9f9')+';border:1px solid '+(m.lead?'#b5d4f4':'#ebebeb')+';margin-bottom:4px">';
+      h += '<div style="display:flex;align-items:center;gap:8px">';
+      h += '<div class="initials">'+initials(m.name)+'</div>';
+      h += '<span style="font-size:13px;font-weight:500">'+m.name+'</span>';
+      if (m.lead) h += '<span class="badge badge-lead">Lead</span>';
+      h += userBadge(m.name);
+      h += '</div>';
+      if (m.pct) {
+        var pctWidth = Math.min(100, Number(m.pct));
+        h += '<div style="display:flex;align-items:center;gap:8px">';
+        h += '<div style="width:80px;height:6px;background:#e0e0e0;border-radius:3px;overflow:hidden">';
+        h += '<div style="width:'+pctWidth+'%;height:100%;background:#185FA5;border-radius:3px"></div></div>';
+        h += '<span style="font-size:12px;font-weight:700;color:#185FA5;min-width:36px;text-align:right">'+m.pct+'%</span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+    if (totalEffort > 0) {
+      h += '<div style="margin-top:6px;padding:7px 10px;border-radius:8px;background:#0a1628;display:flex;justify-content:space-between;align-items:center">';
+      h += '<span style="font-size:12px;color:rgba(255,255,255,.7)">Total DOMStat support</span>';
+      h += '<span style="font-size:14px;font-weight:800;color:#FFD100">'+totalEffort+'%</span></div>';
+    }
+  } else {
+    h += '<div style="font-size:12px;color:#999">Unassigned</div>';
+  }
   // Skills for each team member
   var teamSkills = '';
   (p.team || []).forEach(function(m) {
@@ -1032,69 +1114,67 @@ function buildPIDashboard() {
 // ── MY PROJECTS / ALL PROJECTS ─────────────────────────────────────────────
 function buildMyProjects() {
   var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); });
-
   var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">My projects &mdash; ' + session.name + '</span>';
   h += '<button class="btn btn-sm btn-primary" id="logHrsBtn">+ Log hours</button></div>';
 
   if (!myP.length) {
     h += '<div class="empty">You are not assigned to any projects yet.</div>';
   } else {
-    // Group by PI
-    var byPI = {}, piOrder = [];
-    myP.forEach(function(p) {
-      if (!byPI[p.pi]) { byPI[p.pi] = []; piOrder.push(p.pi); }
-      byPI[p.pi].push(p);
-    });
-    piOrder.sort();
-
-    piOrder.forEach(function(pi) {
-      var piProjs = byPI[pi];
-      var piHrs = piProjs.reduce(function(a,p) {
-        return a + hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(b,h){return b+h.hours;},0);
-      }, 0);
-
-      h += '<div style="margin-bottom:1.25rem">';
-      // PI header
-      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0a1628;border-radius:10px 10px 0 0;flex-wrap:wrap;gap:8px">';
-      h += '<div style="display:flex;align-items:center;gap:10px">';
-      h += '<div style="width:32px;height:32px;border-radius:50%;background:#1a6fcf;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(pi)+'</div>';
-      h += '<div><div style="font-weight:700;font-size:13px;color:#fff">'+pi+'</div>';
-      h += '<div style="font-size:11px;color:rgba(255,255,255,.5)">'+piProjs.length+' project'+(piProjs.length!==1?'s':'')+' &middot; '+fmtHrs(piHrs)+' hrs logged</div>';
-      h += '</div></div></div>';
-
-      // Projects
-      piProjs.forEach(function(p, idx) {
-        var isLast = idx === piProjs.length-1;
-        var me = (p.team||[]).filter(function(m){return m.name===session.name;})[0];
-        var myHrs = hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(a,h){return a+h.hours;},0);
-        var myBill = hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(a,h){return a+h.billingAmount;},0);
-
-        h += '<div style="border:1px solid #e5e5e5;border-top:none;'+(isLast?'border-radius:0 0 10px 10px;':'')+'background:#fff;padding:12px 16px;cursor:pointer" data-detail="'+p.id+'">';
-        h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px">';
-        h += '<div>';
-        h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
-        h += '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">';
-        h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
-        h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
-        if (me && me.lead) h += '<span class="badge badge-lead">Lead</span>';
-        if (p.type==='pct' && me && me.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 8px;border-radius:20px">'+me.pct+'%</span>';
-        if (p.department) h += '<span style="font-size:11px;color:#888;background:#f5f5f5;padding:2px 8px;border-radius:20px">'+p.department+'</span>';
-        h += '</div></div>';
-        h += '<div style="text-align:right;flex-shrink:0">';
-        h += '<div style="font-size:13px;font-weight:700;color:#185FA5">'+fmtHrs(myHrs)+' hrs</div>';
-        if (myBill) h += '<div style="font-size:11px;color:#3B6D11;font-weight:500">'+fmtMoney(myBill)+' billed</div>';
-        h += '<div style="font-size:11px;color:#aaa;margin-top:2px">'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+'</div>';
-        h += '</div></div>';
-
-        // Scope summary if set
-        if (p.scopeSummary) {
-          h += '<div style="font-size:12px;color:#555;background:#f9f9f9;padding:6px 10px;border-radius:6px;margin-top:4px;line-height:1.5">';
-          h += '<span style="font-weight:600;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Scope:</span>'+p.scopeSummary+'</div>';
-        }
-        if (p.nextSteps) {
-          h += '<div style="font-size:12px;color:#3B6D11;background:#EAF3DE;padding:6px 10px;border-radius:6px;margin-top:4px;line-height:1.5">';
-          h += '<span style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Next:</span>'+p.nextSteps+'</div>';
-        }
+    var cats = [
+      {key:'current', label:'Current projects', icon:'&#9679;', color:'#3B6D11', bg:'#EAF3DE'},
+      {key:'planned', label:'Upcoming & planned', icon:'&#9670;', color:'#185FA5', bg:'#E6F1FB'},
+      {key:'complete', label:'Completed', icon:'&#10003;', color:'#5F5E5A', bg:'#F1EFE8'}
+    ];
+    cats.forEach(function(cat) {
+      var catP = myP.filter(function(p){ return getProjectCategory(p) === cat.key; });
+      if (!catP.length) return;
+      // Group by PI within category
+      var byPI = {}, piOrder = [];
+      catP.forEach(function(p){
+        if (!byPI[p.pi]){byPI[p.pi]=[];piOrder.push(p.pi);}
+        byPI[p.pi].push(p);
+      });
+      piOrder.sort();
+      h += '<div style="margin-bottom:1.5rem">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+      h += '<span style="font-size:12px;font-weight:700;color:'+cat.color+';text-transform:uppercase;letter-spacing:.06em">'+cat.label+' ('+catP.length+')</span>';
+      h += '</div>';
+      piOrder.forEach(function(pi){
+        var piProjs = byPI[pi];
+        var piHrs = piProjs.reduce(function(a,p){
+          return a+hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(b,h){return b+h.hours;},0);
+        },0);
+        h += '<div style="margin-bottom:1rem">';
+        h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0a1628;border-radius:10px 10px 0 0;flex-wrap:wrap;gap:8px">';
+        h += '<div style="display:flex;align-items:center;gap:10px">';
+        h += '<div style="width:30px;height:30px;border-radius:50%;background:#1a6fcf;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(pi)+'</div>';
+        h += '<div><div style="font-weight:700;font-size:13px;color:#fff">'+pi+'</div>';
+        h += '<div style="font-size:11px;color:rgba(255,255,255,.5)">'+piProjs.length+' project'+(piProjs.length!==1?'s':'')+' &middot; '+fmtHrs(piHrs)+' hrs</div></div></div>';
+        h += '<span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;background:'+cat.bg+';color:'+cat.color+'">'+cat.label.split(' ')[0]+'</span>';
+        h += '</div>';
+        piProjs.forEach(function(p, idx){
+          var isLast = idx === piProjs.length-1;
+          var me = (p.team||[]).filter(function(m){return m.name===session.name;})[0];
+          var myHrs = hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(a,h){return a+h.hours;},0);
+          h += '<div style="border:1px solid #e5e5e5;border-top:none;'+(isLast?'border-radius:0 0 10px 10px;':'')+'background:#fff;padding:12px 16px;cursor:pointer" data-detail="'+p.id+'">';
+          h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px">';
+          h += '<div>';
+          h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
+          h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+          h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+          h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
+          if (me&&me.lead) h += '<span class="badge badge-lead">Lead</span>';
+          if (me&&me.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 8px;border-radius:20px">'+me.pct+'% effort</span>';
+          if (p.department) h += '<span style="font-size:11px;color:#888;background:#f5f5f5;padding:2px 8px;border-radius:20px">'+p.department+'</span>';
+          h += '</div></div>';
+          h += '<div style="text-align:right;flex-shrink:0">';
+          h += '<div style="font-size:13px;font-weight:700;color:#185FA5">'+fmtHrs(myHrs)+' hrs</div>';
+          h += '<div style="font-size:11px;color:#aaa;margin-top:2px">'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+'</div>';
+          h += '</div></div>';
+          if (p.scopeSummary) h += '<div style="font-size:12px;color:#555;background:#f9f9f9;padding:6px 10px;border-radius:6px;margin-top:4px"><span style="font-weight:600;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Scope:</span>'+p.scopeSummary+'</div>';
+          if (p.nextSteps) h += '<div style="font-size:12px;color:#3B6D11;background:#EAF3DE;padding:6px 10px;border-radius:6px;margin-top:4px"><span style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Next:</span>'+p.nextSteps+'</div>';
+          h += '</div>';
+        });
         h += '</div>';
       });
       h += '</div>';
@@ -1102,11 +1182,11 @@ function buildMyProjects() {
   }
   h += '</div>';
   sh('pageContainer', h);
-  document.querySelectorAll('[data-detail]').forEach(function(row) {
-    row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); });
+  document.querySelectorAll('[data-detail]').forEach(function(row){
+    row.addEventListener('click', function(){showDetail(this.getAttribute('data-detail'));});
   });
   var lb = el('logHrsBtn');
-  if (lb) lb.addEventListener('click', function() { renderPage('loghours'); });
+  if (lb) lb.addEventListener('click', function(){renderPage('loghours');});
 }
 
 
@@ -1937,49 +2017,433 @@ function doBillingRender() {
   });
 }
 
+function buildApprovals() {
+  var pending=approvals.filter(function(a){return a.status==='pending';});
+  var recent=approvals.filter(function(a){return a.status!=='pending';}).slice(-10).reverse();
+  var h='<div class="card"><div class="card-title">Pending approvals ('+pending.length+')</div>';
+  if(!pending.length)h+='<div class="empty">No pending approvals &mdash; all caught up</div>';
+  else pending.forEach(function(a){
+    h+='<div style="border:1px solid #e5e5e5;border-left:4px solid #EF9F27;border-radius:8px;padding:12px;margin-bottom:8px;background:#fff">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+    h+='<div><span style="font-weight:600">'+a.projectName+'</span><span class="badge badge-appr-pending" style="margin-left:8px">'+a.requestType.replace(/_/g,' ')+'</span></div>';
+    h+='<div style="display:flex;gap:6px"><button class="btn btn-sm btn-approve" data-approve="'+a.id+'">&check; Approve</button><button class="btn btn-sm btn-reject" data-reject="'+a.id+'">&times; Reject</button></div></div>';
+    h+='<div style="font-size:12px;color:#666;margin-top:6px"><strong>By:</strong> '+a.requestedBy+' on '+fmtDate(a.requestedDate)+'<br><strong>Field:</strong> '+a.fieldChanged;
+    if(a.newValue)h+='<br><strong>Proposed:</strong> '+String(a.newValue).substring(0,120);
+    h+='</div></div>';
+  });
+  h+='</div>';
+  if(recent.length){
+    h+='<div class="card"><div class="card-title">Recent decisions</div>';
+    h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>Request</th><th>Requested by</th><th>Decision</th><th>Reviewed by</th><th>Date</th></tr></thead><tbody>';
+    recent.forEach(function(a){
+      h+='<tr><td style="font-size:12px;font-weight:600">'+a.projectName+'</td><td style="font-size:12px">'+a.requestType.replace(/_/g,' ')+'</td><td style="font-size:12px">'+a.requestedBy+'</td>';
+      h+='<td><span class="badge '+(a.status==='approved'?'badge-approved':'badge-rejected')+'">'+a.status+'</span></td>';
+      h+='<td style="font-size:12px">'+a.reviewedBy+'</td><td style="font-size:12px">'+fmtDate(a.reviewedDate)+'</td></tr>';
+    });
+    h+='</tbody></table></div></div>';
+  }
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-approve]').forEach(function(btn){btn.addEventListener('click',function(){reviewApproval(this.getAttribute('data-approve'),'approved');});});
+  document.querySelectorAll('[data-reject]').forEach(function(btn){btn.addEventListener('click',function(){reviewApproval(this.getAttribute('data-reject'),'rejected');});});
+}
+function reviewApproval(id,decision){
+  var a=approvals.filter(function(x){return x.id===id;})[0]; if(!a)return;
+  a.status=decision; a.reviewedBy=session.name; a.reviewedDate=new Date().toISOString().split('T')[0];
+  if(decision==='approved'&&a.requestType==='join_project'){
+    var p=projects.filter(function(x){return x.id===a.projectId;})[0];
+    if(p&&!(p.team||[]).some(function(m){return m.name===a.requestedBy;})){
+      p.team=(p.team||[]).concat([{name:a.requestedBy,pct:null,lead:false}]);
+      saveRecord('update',projectToRow(p),'Sheet1');
+    }
+  }
+  saveRecord('update',a,'approvals');
+  buildApprovals();
+}
+
+// ── STAFF OVERVIEW ─────────────────────────────────────────────────────────
+function buildStaffOverview(){
+  var h='<div class="card"><div class="card-title">Staff assignments</div><div style="overflow-x:auto"><table><thead><tr><th>Staff member</th><th>Leads</th><th>Supporting</th><th>Types</th></tr></thead><tbody>';
+  STAFF.forEach(function(s){
+    var leading=projects.filter(function(p){return(p.team||[]).some(function(m){return m.name===s&&m.lead;});});
+    var supporting=projects.filter(function(p){return(p.team||[]).some(function(m){return m.name===s&&!m.lead;});});
+    var types=[]; projects.filter(function(p){return(p.team||[]).some(function(m){return m.name===s;});}).forEach(function(p){if(types.indexOf(p.type)===-1)types.push(p.type);});
+    h+='<tr><td style="font-weight:600;font-size:13px"><div style="display:flex;align-items:center;gap:8px"><div class="initials">'+initials(s)+'</div>'+s+' '+userBadge(s)+'</div></td>';
+    h+='<td>'+( leading.length?leading.map(function(p){return'<div style="font-size:12px;font-weight:600;color:#3C3489">'+p.project+'</div>';}).join(''):'<span style="color:#999;font-size:12px">&mdash;</span>')+'</td>';
+    h+='<td>'+( supporting.length?supporting.map(function(p){return'<div style="font-size:12px;color:#666">'+p.project+'</div>';}).join(''):'<span style="color:#999;font-size:12px">&mdash;</span>')+'</td>';
+    h+='<td>'+types.map(function(t){return'<span class="'+typeBadge(t)+'">'+typeLabel(t)+'</span>';}).join(' ')+'</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+  sh('pageContainer',h);
+}
+
+// ── BUDGETS ────────────────────────────────────────────────────────────────
+function buildBudgets(){
+  var h='<div class="card"><div class="card-title">Budget management</div><div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Budget target</th><th>Total billed</th><th>Remaining</th><th>Utilization</th><th>Action</th></tr></thead><tbody>';
+  projects.forEach(function(p){
+    var spent=projBill(p.id), rem=p.budgetTarget?(p.budgetTarget-spent):null;
+    var pct=p.budgetTarget?Math.min(100,Math.round(spent/p.budgetTarget*100)):0;
+    var col=pct>=100?'#E24B4A':pct>=80?'#EF9F27':'#639922';
+    h+='<tr><td style="font-weight:600;font-size:12px">'+p.project+'</td>';
+    h+='<td style="font-size:12px;color:#666">'+p.pi+(p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'')+'</td>';
+    h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+    h+='<td><input type="number" id="budget_'+p.id+'" value="'+(p.budgetTarget||'')+'" placeholder="Set budget" style="width:110px;font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"></td>';
+    h+='<td style="font-size:12px;color:#3B6D11;font-weight:500">'+fmtMoney(spent)+'</td>';
+    h+='<td style="font-size:12px;color:'+(rem!==null&&rem<0?'#A32D2D':'#3B6D11')+'">'+( rem!==null?fmtMoney(rem):'&mdash;')+'</td>';
+    h+='<td>'+(p.budgetTarget?'<div class="budget-bar" style="width:100px"><div class="budget-fill" style="width:'+pct+'%;background:'+col+'"></div></div><div style="font-size:10px;color:#888;margin-top:2px">'+pct+'%</div>':'&mdash;')+'</td>';
+    h+='<td><button class="btn btn-sm" data-savebudget="'+p.id+'">Save</button></td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+  sh('pageContainer',h);
+  document.querySelectorAll('[data-savebudget]').forEach(function(btn){btn.addEventListener('click',function(){
+    var id=this.getAttribute('data-savebudget');
+    var p=projects.filter(function(x){return x.id===id;})[0]; if(!p)return;
+    p.budgetTarget=parseFloat(gv('budget_'+id))||null;
+    saveRecord('update',projectToRow(p),'Sheet1');
+    buildBudgets();
+  });});
+}
+
+
+
+
+// ── FUND MANAGER QUEUE (rebuilt) ──────────────────────────────────────────
+function buildFund() {
+  var today = new Date(); today.setHours(0,0,0,0);
+  var SIXTY_DAYS = 60 * 24 * 60 * 60 * 1000;
+
+  var allActive = projects.filter(function(p){
+    return (p.invoiceStatus||'pending') !== 'processed' && p.fundManagerStatus !== 'processed';
+  });
+  var processed = projects.filter(function(p){
+    return p.fundManagerStatus === 'processed' || (p.invoiceStatus||'pending') === 'processed';
+  });
+
+  // Categorise active projects
+  var outstanding = allActive.filter(function(p){ return projBill(p.id) > 0; });
+  var notBilled   = allActive.filter(function(p){ return projBill(p.id) === 0; });
+
+  // Sort outstanding: highest outstanding balance first
+  outstanding.sort(function(a,b){
+    var aOut = Math.max(0, projBill(a.id) - (Number(a.fundsReceived)||0));
+    var bOut = Math.max(0, projBill(b.id) - (Number(b.fundsReceived)||0));
+    return bOut - aOut;
+  });
+
+  // Renewal alerts — multi-year % effort projects within 60 days of end date
+  var renewalAlerts = projects.filter(function(p){
+    if (p.type !== 'pct' || !p.end) return false;
+    var endDate = new Date(p.end);
+    var daysLeft = Math.ceil((endDate - today) / (24*60*60*1000));
+    return daysLeft > 0 && daysLeft <= 60;
+  });
+
+  var totalOutstanding = outstanding.reduce(function(a,p){
+    return a + Math.max(0, projBill(p.id) - (Number(p.fundsReceived)||0));
+  }, 0);
+
+  var h = '<div class="card">';
+  h += '<div class="section-hdr" style="margin-bottom:1.25rem">';
+  h += '<span class="card-title" style="margin:0">Fund manager queue</span>';
+  h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
+  if (totalOutstanding > 0) h += '<span style="font-size:12px;font-weight:700;color:#A32D2D;background:#FCEBEB;padding:4px 12px;border-radius:20px">'+fmtMoney(totalOutstanding)+' outstanding</span>';
+  h += '<span style="font-size:12px;color:#888">'+allActive.length+' pending &middot; '+processed.length+' processed</span>';
+  h += '</div></div>';
+
+  // ── Renewal alerts ──────────────────────────────────────────────────────
+  if (renewalAlerts.length) {
+    h += '<div style="margin-bottom:1.5rem">';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#854F0B" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#854F0B" stroke-width="2" stroke-linecap="round"/></svg>';
+    h += '<span style="font-size:12px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em">Renewal due soon ('+renewalAlerts.length+')</span></div>';
+    renewalAlerts.forEach(function(p){
+      var endDate = new Date(p.end);
+      var daysLeft = Math.ceil((endDate - today)/(24*60*60*1000));
+      h += '<div style="border:1.5px solid #EF9F27;border-radius:10px;padding:12px 16px;margin-bottom:8px;background:#FFFDF7;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">';
+      h += '<div>';
+      h += '<div style="font-weight:700;font-size:13px;color:#1a1a1a">'+p.project+'</div>';
+      h += '<div style="font-size:12px;color:#888;margin-top:3px">PI: '+p.pi+' &middot; Expires: '+fmtDate(p.end)+'</div>';
+      h += '</div>';
+      h += '<div style="display:flex;align-items:center;gap:8px">';
+      h += '<span style="font-size:12px;font-weight:700;color:#854F0B;background:#FAEEDA;padding:3px 10px;border-radius:20px">'+daysLeft+' days left</span>';
+      h += '<button class="btn btn-sm" style="font-size:11px;border-color:#EF9F27;color:#854F0B" data-renew="'+p.id+'">Renew project</button>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+  }
+
+  // ── Outstanding Recharges ───────────────────────────────────────────────
+  if (outstanding.length) {
+    h += '<div style="margin-bottom:1.5rem">';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="2" y="5" width="20" height="14" rx="3" stroke="#A32D2D" stroke-width="2"/><path d="M2 10h20" stroke="#A32D2D" stroke-width="2"/><rect x="6" y="14" width="4" height="2" rx="1" fill="#A32D2D"/></svg>';
+    h += '<span style="font-size:12px;font-weight:700;color:#A32D2D;text-transform:uppercase;letter-spacing:.06em">Outstanding recharges ('+outstanding.length+')</span>';
+    h += '<span style="font-size:12px;font-weight:700;color:#A32D2D;margin-left:4px">&mdash; '+fmtMoney(totalOutstanding)+' total</span>';
+    h += '</div>';
+    h += buildFundPIGroup(outstanding);
+    h += '</div>';
+  }
+
+  // ── Not yet billed ──────────────────────────────────────────────────────
+  if (notBilled.length) {
+    h += '<div style="margin-bottom:1.5rem">';
+    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+    h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#888" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="#888" stroke-width="2" stroke-linecap="round"/></svg>';
+    h += '<span style="font-size:12px;font-weight:700;color:#666;text-transform:uppercase;letter-spacing:.06em">No hours logged yet ('+notBilled.length+')</span></div>';
+    h += buildFundPIGroup(notBilled);
+    h += '</div>';
+  }
+
+  if (!allActive.length) h += '<div class="empty" style="padding:2rem">Queue is clear — all projects processed.</div>';
+
+  // ── Recently processed ──────────────────────────────────────────────────
+  if (processed.length) {
+    h += '<div style="border-top:1px solid #f0f0f0;padding-top:1.25rem;margin-top:.5rem">';
+    h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Recently processed ('+processed.length+')</div>';
+    h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Billed</th><th>Status</th></tr></thead><tbody>';
+    processed.slice(-10).reverse().forEach(function(p){
+      h += '<tr><td style="font-size:12px;font-weight:600">'+p.project+'</td>';
+      h += '<td style="font-size:12px;color:#666">'+p.pi+'</td>';
+      h += '<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+      h += '<td style="font-size:12px;color:#3B6D11;font-weight:500">'+fmtMoney(projBill(p.id))+'</td>';
+      h += '<td><span class="badge badge-processed">Processed</span></td></tr>';
+    });
+    h += '</tbody></table></div></div>';
+  }
+  h += '</div>';
+  sh('pageContainer', h);
+
+  // Handlers
+  document.querySelectorAll('[data-invoice-pi]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var parts = decodeURIComponent(this.getAttribute('data-invoice-pi')).split('|');
+      sendInvoiceForPI(parts[0], parts[1]||'');
+    });
+  });
+  document.querySelectorAll('[data-set-inv]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var pid = this.getAttribute('data-set-inv'), newStatus = this.getAttribute('data-status');
+      var p = projects.filter(function(x){return x.id===pid;})[0];
+      if (!p) return;
+      p.invoiceStatus = newStatus;
+      if (newStatus === 'processed') { p.fundManagerStatus = 'processed'; p.fundsReceived = projBill(p.id); }
+      saveRecord('update', projectToRow(p), 'Sheet1');
+      buildFund();
+    });
+  });
+  document.querySelectorAll('[data-renew]').forEach(function(btn){
+    btn.addEventListener('click', function(){ openRenewalModal(this.getAttribute('data-renew')); });
+  });
+}
+
+function buildFundPIGroup(list) {
+  var byPI = {}, piOrder = [];
+  list.forEach(function(p){
+    if (!byPI[p.pi]) { byPI[p.pi] = []; piOrder.push(p.pi); }
+    byPI[p.pi].push(p);
+  });
+  piOrder.sort();
+  var h = '';
+  piOrder.forEach(function(pi){
+    var piProjs = byPI[pi];
+    var piTotal = piProjs.reduce(function(a,p){return a+projBill(p.id);},0);
+    var piOut = piProjs.reduce(function(a,p){return a+Math.max(0,projBill(p.id)-(Number(p.fundsReceived)||0));},0);
+    var piEmail = piProjs[0].piEmail||'';
+
+    h += '<div style="margin-bottom:1rem">';
+    h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0a1628;border-radius:10px 10px 0 0;flex-wrap:wrap;gap:8px">';
+    h += '<div style="display:flex;align-items:center;gap:10px">';
+    h += '<div style="width:32px;height:32px;border-radius:50%;background:#1a6fcf;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(pi)+'</div>';
+    h += '<div><div style="font-weight:700;font-size:13px;color:#fff">'+pi+'</div>';
+    h += '<div style="font-size:11px;color:rgba(255,255,255,.5)">'+piProjs.length+' project'+(piProjs.length!==1?'s':'')+' &middot; '+fmtMoney(piTotal)+' billed';
+    if (piOut > 0) h += ' &middot; <span style="color:#FFD100;font-weight:700">'+fmtMoney(piOut)+' outstanding</span>';
+    if (piEmail) h += ' &middot; '+piEmail;
+    h += '</div></div></div>';
+    h += '<button class="btn btn-sm" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.2);font-size:11px" data-invoice-pi="'+encodeURIComponent(pi)+'|'+piEmail+'">Send invoice</button>';
+    h += '</div>';
+
+    piProjs.forEach(function(p, idx){
+      var isLast = idx === piProjs.length-1;
+      var billed = projBill(p.id);
+      var received = Number(p.fundsReceived)||0;
+      var outstanding = Math.max(0, billed - received);
+      var invStatus = p.invoiceStatus||'pending';
+      var invColors = {pending:'#888',sent:'#854F0B',paid:'#3B6D11',processed:'#3B6D11'};
+      var invBgs = {pending:'#f5f5f5',sent:'#FAEEDA',paid:'#EAF3DE',processed:'#EAF3DE'};
+      var invLabels = {pending:'Not invoiced',sent:'Invoice sent',paid:'Paid',processed:'Processed'};
+
+      h += '<div style="border:1px solid #e5e5e5;border-top:none;'+(isLast?'border-radius:0 0 10px 10px;':'')+'background:#fff;padding:12px 16px">';
+      h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+      h += '<div>';
+      h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
+      h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+      h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+      h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
+      if (p.grant) h += '<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">Grant: '+p.grant+'</span>';
+      if (p.fau) h += '<span style="font-size:11px;color:#666;background:#f5f5f5;padding:2px 8px;border-radius:20px">FAU: '+p.fau+'</span>';
+      if (p.end) h += '<span style="font-size:11px;color:#888;background:#f5f5f5;padding:2px 8px;border-radius:20px">Ends: '+fmtDate(p.end)+'</span>';
+      h += '</div></div>';
+      h += '<div style="text-align:right;flex-shrink:0">';
+      h += '<div style="font-weight:700;color:#3B6D11;font-size:14px">'+fmtMoney(billed)+' billed</div>';
+      if (outstanding > 0) h += '<div style="font-size:12px;font-weight:700;color:#A32D2D">'+fmtMoney(outstanding)+' outstanding</div>';
+      else if (received > 0) h += '<div style="font-size:12px;color:#3B6D11">\u2713 Paid: '+fmtMoney(received)+'</div>';
+      h += '</div></div>';
+      h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      h += '<span style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.04em">Invoice:</span>';
+      h += '<span style="font-size:12px;padding:3px 10px;border-radius:20px;font-weight:600;background:'+invBgs[invStatus]+';color:'+invColors[invStatus]+'">'+invLabels[invStatus]+'</span>';
+      if (invStatus !== 'processed') {
+        h += '<div style="display:flex;gap:5px">';
+        if (invStatus==='pending') h += '<button class="btn btn-sm" style="font-size:11px" data-set-inv="'+p.id+'" data-status="sent">Mark sent</button>';
+        if (invStatus==='sent') h += '<button class="btn btn-sm btn-approve" style="font-size:11px" data-set-inv="'+p.id+'" data-status="paid">Mark paid</button>';
+        if (invStatus==='paid') h += '<button class="btn btn-sm btn-success" style="font-size:11px" data-set-inv="'+p.id+'" data-status="processed">\u2713 Processed</button>';
+        h += '</div>';
+      }
+      h += '</div></div>';
+    });
+    h += '</div>';
+  });
+  return h;
+}
+
+function openRenewalModal(pid) {
+  var p = projects.filter(function(x){return x.id===pid;})[0];
+  if (!p) return;
+  var endDate = new Date(p.end);
+  var newEnd = new Date(endDate);
+  newEnd.setFullYear(newEnd.getFullYear()+1);
+  var newEndStr = newEnd.toISOString().split('T')[0];
+  var billed = projBill(p.id);
+
+  var h = '<div class="modal-title">Renew project &mdash; '+p.project+'</div>';
+  h += '<div style="background:#FAEEDA;border-radius:8px;padding:12px 14px;margin-bottom:1rem;font-size:13px;color:#854F0B">';
+  h += '<strong>This project expires on '+fmtDate(p.end)+'.</strong> Confirm renewal to extend the period of performance and flag for re-invoicing.</div>';
+  h += '<div class="form-grid" style="margin-bottom:1rem">';
+  h += '<div class="form-group"><label>Current end date</label><input type="date" id="ren_oldEnd" value="'+p.end+'" disabled style="background:#f5f5f5;color:#888"></div>';
+  h += '<div class="form-group"><label>New end date *</label><input type="date" id="ren_newEnd" value="'+newEndStr+'"></div>';
+  h += '<div class="form-group"><label>New total value ($)</label><input type="number" id="ren_value" placeholder="e.g. 50000" value="'+(p.totalValue||'')+'"></div>';
+  h += '<div class="form-group"><label>New FAU (if changed)</label><input type="text" id="ren_fau" value="'+(p.fau||'')+'"></div>';
+  h += '<div class="form-group full"><label>Renewal notes</label><textarea id="ren_notes" placeholder="Any notes about the renewal terms..."></textarea></div>';
+  h += '</div>';
+  h += '<div style="background:#EAF3DE;border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:#3B6D11">A new invoice will be created for this renewal period. Current billed amount: <strong>'+fmtMoney(billed)+'</strong></div>';
+  h += '<div class="actions">';
+  h += '<button class="btn" id="renCancelBtn">Cancel</button>';
+  h += '<button class="btn btn-primary" id="renConfirmBtn">Confirm renewal</button>';
+  h += '</div>';
+  openModal(h);
+  el('renCancelBtn').addEventListener('click', closeModal);
+  el('renConfirmBtn').addEventListener('click', function(){
+    var newEnd = gv('ren_newEnd');
+    if (!newEnd) { alert('Please enter a new end date.'); return; }
+    p.end = newEnd;
+    p.fau = gv('ren_fau') || p.fau;
+    var newVal = parseFloat(gv('ren_value'));
+    if (newVal) p.totalValue = newVal;
+    p.invoiceStatus = 'pending';
+    p.fundManagerStatus = 'pending';
+    p.projectStatus = 'Active Project';
+    var renewNote = 'RENEWED on '+new Date().toISOString().split('T')[0]+'. New end: '+newEnd+(gv('ren_notes')?'\nNotes: '+gv('ren_notes'):'');
+    p.notes = p.notes ? p.notes+'\n\n'+renewNote : renewNote;
+    saveRecord('update', projectToRow(p), 'Sheet1');
+    closeModal();
+    buildFund();
+  });
+}
+
+// ── UPDATED INVOICE: include staff breakdown ──────────────────────────────
 function sendInvoiceForPI(piName, piEmail) {
-  var piProjects = projects.filter(function(p) { return p.pi === piName; });
+  var piProjects = projects.filter(function(p){ return p.pi === piName; });
   var fmName = '', fmEmail = '';
-  piProjects.forEach(function(p) {
+  piProjects.forEach(function(p){
     if (!fmName && p.fmName) fmName = p.fmName;
     if (!fmEmail && p.fmEmail) fmEmail = p.fmEmail;
     if (!piEmail && p.piEmail) piEmail = p.piEmail;
   });
 
-  var today = new Date().toLocaleDateString('en-US', {year:'numeric', month:'long', day:'numeric'});
+  var today = new Date().toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'});
   var grandHrs = 0, grandBill = 0;
   var sections = [];
 
-  piProjects.forEach(function(p) {
-    var ph = hoursData.filter(function(h) { return h.projectId === p.id; });
+  piProjects.forEach(function(p){
+    var ph = hoursData.filter(function(h){return h.projectId===p.id;});
     if (!ph.length) return;
     var tH = ph.reduce(function(a,h){return a+h.hours;},0);
     var tB = ph.reduce(function(a,h){return a+h.billingAmount;},0);
     grandHrs += tH; grandBill += tB;
-    var bySvc = {};
-    ph.forEach(function(h){if(!bySvc[h.serviceType])bySvc[h.serviceType]={hrs:0,bill:0};bySvc[h.serviceType].hrs+=h.hours;bySvc[h.serviceType].bill+=h.billingAmount;});
-    var sec = '\nProject: ' + p.project + '\n';
-    if (p.grant) sec += 'Grant #: ' + p.grant + '\n';
-    if (p.fau) sec += 'FAU: ' + p.fau + '\n';
-    sec += '-'.repeat(50) + '\n';
-    Object.keys(bySvc).forEach(function(svc){sec += '  ' + svc + ': ' + bySvc[svc].hrs.toFixed(1) + ' hrs = ' + tB.toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n';});
-    sec += '  Subtotal: ' + tH.toFixed(1) + ' hrs = ' + tB.toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n';
-    if (p.budgetTarget) sec += '  Budget remaining: ' + (p.budgetTarget - projBill(p.id)).toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n';
+
+    // Group by staff member
+    var byStaff = {};
+    ph.forEach(function(h){
+      if (!byStaff[h.staffName]) byStaff[h.staffName] = {hrs:0, bill:0, rate:RATES[h.staffName]||66.08, bySvc:{}};
+      byStaff[h.staffName].hrs += h.hours;
+      byStaff[h.staffName].bill += h.billingAmount;
+      if (!byStaff[h.staffName].bySvc[h.serviceType]) byStaff[h.staffName].bySvc[h.serviceType] = 0;
+      byStaff[h.staffName].bySvc[h.serviceType] += h.hours;
+    });
+
+    // By quarter
+    var byQ = {};
+    ph.forEach(function(h){
+      var k=h.quarter+' '+h.year;
+      if(!byQ[k])byQ[k]={hrs:0,bill:0};
+      byQ[k].hrs+=h.hours; byQ[k].bill+=h.billingAmount;
+    });
+
+    var sep = '-'.repeat(55);
+    var sec = '\nPROJECT: '+p.project+'\n';
+    if (p.grant) sec += 'Grant #: '+p.grant+'\n';
+    if (p.fau) sec += 'FAU: '+p.fau+'\n';
+    sec += 'Period: '+fmtDate(p.start)+' to '+fmtDate(p.end)+'\n';
+    sec += sep+'\n';
+    sec += 'CHARGES BY STAFF MEMBER\n';
+    sec += sep+'\n';
+    Object.keys(byStaff).sort().forEach(function(name){
+      var sd = byStaff[name];
+      sec += '\n  '+name+' (Rate: $'+sd.rate.toFixed(2)+'/hr)\n';
+      Object.keys(sd.bySvc).forEach(function(svc){
+        var sHrs = sd.bySvc[svc];
+        sec += '    '+padRight(svc,26)+' '+padLeft(sHrs.toFixed(1)+' hrs',10)+'   $'+(sHrs*sd.rate).toFixed(2)+'\n';
+      });
+      sec += '    '+padRight('Staff subtotal',26)+' '+padLeft(sd.hrs.toFixed(1)+' hrs',10)+'   $'+sd.bill.toFixed(2)+'\n';
+    });
+    sec += sep+'\n';
+    sec += padRight('PROJECT TOTAL',36)+' '+padLeft(tH.toFixed(1)+' hrs',8)+'   $'+tB.toFixed(2)+'\n';
+    if (p.budgetTarget) {
+      sec += padRight('Budget target',36)+' '+'         '+'   $'+p.budgetTarget.toFixed(2)+'\n';
+      sec += padRight('Remaining',36)+' '+'         '+'   $'+(p.budgetTarget-projBill(p.id)).toFixed(2)+'\n';
+    }
+
+    // By quarter summary
+    sec += '\nCharges by period:\n';
+    Object.keys(byQ).forEach(function(q){
+      sec += '  '+padRight(q,28)+' '+padLeft(byQ[q].hrs.toFixed(1)+' hrs',10)+'   $'+byQ[q].bill.toFixed(2)+'\n';
+    });
     sections.push(sec);
   });
 
-  if (!sections.length) { alert('No hours logged for ' + piName + ' yet.'); return; }
+  if (!sections.length) { alert('No hours logged for '+piName+' yet.'); return; }
 
-  var body = 'UCLA DEPARTMENT OF MEDICINE STATISTICS\nDOMStat Statistical Consulting Services\nInvoice Date: ' + today + '\n' + '='.repeat(50) + '\n\n';
-  body += 'BILL TO: ' + piName + '\nProjects: ' + sections.length + '\n\n';
-  body += '='.repeat(50) + '\nCHARGES BY PROJECT\n' + '='.repeat(50) + '\n';
-  body += sections.join('\n');
-  body += '\n' + '='.repeat(50) + '\nTOTAL: ' + grandHrs.toFixed(1) + ' hrs = ' + grandBill.toLocaleString('en-US',{style:'currency',currency:'USD'}) + '\n' + '='.repeat(50) + '\n\n';
-  body += 'PAYMENT: Please remit to UCLA DOM Statistics\n';
-  if (fmName) body += 'Contact: ' + fmName + (fmEmail ? ' ' + fmEmail : '') + '\n';
-  body += 'https://alaventure.github.io/domstat-tracker\n';
+  var body = 'UCLA DEPARTMENT OF MEDICINE STATISTICS\n';
+  body += 'DOMStat Statistical Consulting Services\n';
+  body += 'Invoice Date: '+today+'\n';
+  body += '='.repeat(55)+'\n\n';
+  body += 'BILL TO\n';
+  body += 'Principal Investigator: '+piName+'\n';
+  body += 'Projects invoiced: '+sections.length+'\n\n';
+  body += '='.repeat(55)+'\n';
+  body += 'ITEMIZED CHARGES\n';
+  body += '='.repeat(55)+'\n';
+  body += sections.join('\n'+'='.repeat(55)+'\n');
+  body += '\n'+'='.repeat(55)+'\n';
+  body += 'INVOICE TOTAL\n';
+  body += '-'.repeat(55)+'\n';
+  body += padRight('Total hours',36)+' '+padLeft(grandHrs.toFixed(1)+' hrs',8)+'\n';
+  body += padRight('TOTAL AMOUNT DUE',36)+' '+'         '+'   $'+grandBill.toFixed(2)+'\n';
+  body += '='.repeat(55)+'\n\n';
+  body += 'PAYMENT INSTRUCTIONS\n';
+  body += 'Please remit payment to UCLA Department of Medicine Statistics.\n';
+  if (fmName) body += 'Contact: '+fmName+(fmEmail?' | '+fmEmail:'')+'\n';
+  body += '\nhttps://alaventure.github.io/domstat-tracker\n';
 
-  window.location.href = 'mailto:' + (piEmail || '') + '?subject=' + encodeURIComponent('DOMStat Invoice — ' + piName + ' — ' + today) + '&body=' + encodeURIComponent(body);
+  window.location.href = 'mailto:'+(piEmail||'')+'?subject='+encodeURIComponent('DOMStat Invoice \u2014 '+piName+' \u2014 '+today)+'&body='+encodeURIComponent(body);
 }
 
 function sendInvoice(pid) {
@@ -1987,8 +2451,9 @@ function sendInvoice(pid) {
   if (p) sendInvoiceForPI(p.pi, p.piEmail||'');
 }
 
+function padRight(s, n) { s=String(s); while(s.length<n)s+=' '; return s; }
+function padLeft(s, n) { s=String(s); while(s.length<n)s=' '+s; return s; }
 
-// ── APPROVALS ──────────────────────────────────────────────────────────────
 function buildApprovals() {
   var pending=approvals.filter(function(a){return a.status==='pending';});
   var recent=approvals.filter(function(a){return a.status!=='pending';}).slice(-10).reverse();
