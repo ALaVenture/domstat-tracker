@@ -1032,29 +1032,83 @@ function buildPIDashboard() {
 // ── MY PROJECTS / ALL PROJECTS ─────────────────────────────────────────────
 function buildMyProjects() {
   var myP = projects.filter(function(p) { return (p.team||[]).some(function(m) { return m.name === session.name; }); });
-  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">My projects &mdash; ' + session.name + '</span><button class="btn btn-sm btn-primary" id="logHrsBtn">+ Log hours</button></div>';
-  if (!myP.length) h += '<div class="empty">You are not assigned to any projects yet.</div>';
-  else {
-    h += '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>My role</th><th>Status</th><th>Period</th><th>My hours</th></tr></thead><tbody>';
+
+  var h = '<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">My projects &mdash; ' + session.name + '</span>';
+  h += '<button class="btn btn-sm btn-primary" id="logHrsBtn">+ Log hours</button></div>';
+
+  if (!myP.length) {
+    h += '<div class="empty">You are not assigned to any projects yet.</div>';
+  } else {
+    // Group by PI
+    var byPI = {}, piOrder = [];
     myP.forEach(function(p) {
-      var me = (p.team||[]).filter(function(m) { return m.name === session.name; })[0];
-      var myH = hoursData.filter(function(h) { return h.projectId === p.id && h.staffName === session.name; }).reduce(function(a,h) { return a+h.hours; }, 0);
-      h += '<tr style="cursor:pointer" data-detail="' + p.id + '">';
-      h += '<td style="font-weight:600">' + p.project + '</td>';
-      h += '<td style="font-size:12px;color:#666">' + p.pi + (p.department?'<br><span style="color:#aaa">'+p.department+'</span>':'') + '</td>';
-      h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></td>';
-      h += '<td>' + (me&&me.lead?'<span class="badge badge-lead">Lead</span>':'<span style="font-size:12px;color:#666">Supporting</span>') + (p.type==='pct'&&me&&me.pct?'<span style="font-size:10px;background:#EEEDFE;color:#534AB7;padding:1px 5px;border-radius:3px;margin-left:4px">'+me.pct+'%</span>':'') + '</td>';
-      h += '<td><span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></td>';
-      h += '<td style="font-size:12px;color:#666">' + fmtDate(p.start) + ' &rarr; ' + fmtDate(p.end) + '</td>';
-      h += '<td style="font-weight:500">' + fmtHrs(myH) + ' hrs</td></tr>';
+      if (!byPI[p.pi]) { byPI[p.pi] = []; piOrder.push(p.pi); }
+      byPI[p.pi].push(p);
     });
-    h += '</tbody></table></div>';
+    piOrder.sort();
+
+    piOrder.forEach(function(pi) {
+      var piProjs = byPI[pi];
+      var piHrs = piProjs.reduce(function(a,p) {
+        return a + hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(b,h){return b+h.hours;},0);
+      }, 0);
+
+      h += '<div style="margin-bottom:1.25rem">';
+      // PI header
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#0a1628;border-radius:10px 10px 0 0;flex-wrap:wrap;gap:8px">';
+      h += '<div style="display:flex;align-items:center;gap:10px">';
+      h += '<div style="width:32px;height:32px;border-radius:50%;background:#1a6fcf;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(pi)+'</div>';
+      h += '<div><div style="font-weight:700;font-size:13px;color:#fff">'+pi+'</div>';
+      h += '<div style="font-size:11px;color:rgba(255,255,255,.5)">'+piProjs.length+' project'+(piProjs.length!==1?'s':'')+' &middot; '+fmtHrs(piHrs)+' hrs logged</div>';
+      h += '</div></div></div>';
+
+      // Projects
+      piProjs.forEach(function(p, idx) {
+        var isLast = idx === piProjs.length-1;
+        var me = (p.team||[]).filter(function(m){return m.name===session.name;})[0];
+        var myHrs = hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(a,h){return a+h.hours;},0);
+        var myBill = hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name;}).reduce(function(a,h){return a+h.billingAmount;},0);
+
+        h += '<div style="border:1px solid #e5e5e5;border-top:none;'+(isLast?'border-radius:0 0 10px 10px;':'')+'background:#fff;padding:12px 16px;cursor:pointer" data-detail="'+p.id+'">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:6px">';
+        h += '<div>';
+        h += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
+        h += '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">';
+        h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+        h += '<span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span>';
+        if (me && me.lead) h += '<span class="badge badge-lead">Lead</span>';
+        if (p.type==='pct' && me && me.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 8px;border-radius:20px">'+me.pct+'%</span>';
+        if (p.department) h += '<span style="font-size:11px;color:#888;background:#f5f5f5;padding:2px 8px;border-radius:20px">'+p.department+'</span>';
+        h += '</div></div>';
+        h += '<div style="text-align:right;flex-shrink:0">';
+        h += '<div style="font-size:13px;font-weight:700;color:#185FA5">'+fmtHrs(myHrs)+' hrs</div>';
+        if (myBill) h += '<div style="font-size:11px;color:#3B6D11;font-weight:500">'+fmtMoney(myBill)+' billed</div>';
+        h += '<div style="font-size:11px;color:#aaa;margin-top:2px">'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+'</div>';
+        h += '</div></div>';
+
+        // Scope summary if set
+        if (p.scopeSummary) {
+          h += '<div style="font-size:12px;color:#555;background:#f9f9f9;padding:6px 10px;border-radius:6px;margin-top:4px;line-height:1.5">';
+          h += '<span style="font-weight:600;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Scope:</span>'+p.scopeSummary+'</div>';
+        }
+        if (p.nextSteps) {
+          h += '<div style="font-size:12px;color:#3B6D11;background:#EAF3DE;padding:6px 10px;border-radius:6px;margin-top:4px;line-height:1.5">';
+          h += '<span style="font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Next:</span>'+p.nextSteps+'</div>';
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+    });
   }
   h += '</div>';
   sh('pageContainer', h);
-  document.querySelectorAll('[data-detail]').forEach(function(row) { row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); }); });
-  var lb = el('logHrsBtn'); if (lb) lb.addEventListener('click', function() { renderPage('loghours'); });
+  document.querySelectorAll('[data-detail]').forEach(function(row) {
+    row.addEventListener('click', function() { showDetail(this.getAttribute('data-detail')); });
+  });
+  var lb = el('logHrsBtn');
+  if (lb) lb.addEventListener('click', function() { renderPage('loghours'); });
 }
+
 
 function buildAllProjects() {
   var allSkills = []; var _tax=getAllSkills(); Object.keys(_tax).forEach(function(k){(_tax[k]||[]).forEach(function(v){allSkills.push(v);});});
