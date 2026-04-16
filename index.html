@@ -1345,6 +1345,28 @@ function refreshLogProjects(staffName) {
         h += '<span style="font-weight:600;color:#888;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Scope:</span>'+p.scopeSummary+'</div>';
       }
 
+      // Budget summary strip
+      var pBilled = projBill(p.id);
+      var pReceived = Number(p.fundsReceived)||0;
+      var pTarget = Number(p.budgetTarget)||0;
+      var pAvail = pReceived ? Math.max(0, pReceived - pBilled) : null;
+      var pRemain = pTarget ? pTarget - pBilled : null;
+      if (pTarget || pReceived) {
+        h += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;padding:8px 10px;background:#f5f5f5;border-radius:8px;align-items:center">';
+        h += '<span style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em">Budget:</span>';
+        if (pBilled) h += '<span style="font-size:12px;color:#185FA5;font-weight:600">Billed: '+fmtMoney(pBilled)+'</span>';
+        if (pReceived) h += '<span style="font-size:12px;color:#3B6D11;font-weight:600">Received: '+fmtMoney(pReceived)+'</span>';
+        if (pAvail!==null) h += '<span style="font-size:12px;font-weight:700;color:'+(pAvail<=0?'#A32D2D':'#3B6D11')+'">Available: <span id="avail_'+p.id+'">'+fmtMoney(pAvail)+'</span></span>';
+        if (pRemain!==null) h += '<span style="font-size:12px;font-weight:700;color:'+(pRemain<0?'#A32D2D':'#3B6D11')+'">Remaining: <span id="remain_'+p.id+'">'+fmtMoney(pRemain)+'</span></span>';
+        if (pTarget) {
+          var usedPct = Math.min(100, Math.round(pBilled/pTarget*100));
+          var barCol = usedPct>=100?'#E24B4A':usedPct>=80?'#EF9F27':'#639922';
+          h += '<div style="flex:1;min-width:100px"><div style="height:6px;background:#ddd;border-radius:3px;overflow:hidden"><div id="budbar_'+p.id+'" style="width:'+usedPct+'%;height:100%;background:'+barCol+';border-radius:3px;transition:width .3s"></div></div>';
+          h += '<div style="font-size:10px;color:#aaa;margin-top:2px;text-align:right"><span id="budpct_'+p.id+'">'+usedPct+'%</span> of '+fmtMoney(pTarget)+' budget</div></div>';
+        }
+        h += '</div>';
+      }
+
       // Hours grid header
       h += '<div style="background:#f0f0f0;display:grid;grid-template-columns:2fr 1fr 1fr;padding:6px 8px;border-radius:6px 6px 0 0;font-size:11px;font-weight:600;color:#666;margin-top:4px">';
       h += '<div>Service type</div><div>Hours</div><div>Billing</div></div>';
@@ -1382,6 +1404,34 @@ function calcBilling(projId, svcIdx, staffName) {
   SVCS.forEach(function(_,i) { var hv=parseFloat((el('hrs_'+projId+'_'+i)||{}).value)||0; th+=hv; tb+=hv*rate; });
   var tot = el('pWT_'+projId);
   if (tot) tot.innerHTML = th.toFixed(1) + ' hrs &mdash; ' + fmtMoney(tb);
+  // Update live budget display
+  var p = projects.filter(function(x){return x.id===projId;})[0];
+  if (p) {
+    var alreadyBilled = projBill(projId);
+    var newTotalBill = alreadyBilled + tb;
+    var received = Number(p.fundsReceived)||0;
+    var target = Number(p.budgetTarget)||0;
+    var newAvail = received ? Math.max(0, received - newTotalBill) : null;
+    var newRemain = target ? target - newTotalBill : null;
+    var availEl = el('avail_'+projId);
+    if (availEl && newAvail!==null) {
+      availEl.textContent = fmtMoney(newAvail);
+      availEl.parentElement.style.color = newAvail<=0?'#A32D2D':'#3B6D11';
+    }
+    var remainEl = el('remain_'+projId);
+    if (remainEl && newRemain!==null) {
+      remainEl.textContent = fmtMoney(newRemain);
+      remainEl.parentElement.style.color = newRemain<0?'#A32D2D':'#3B6D11';
+    }
+    if (target) {
+      var usedPct = Math.min(100, Math.round(newTotalBill/target*100));
+      var barCol = usedPct>=100?'#E24B4A':usedPct>=80?'#EF9F27':'#639922';
+      var barEl = el('budbar_'+projId);
+      if (barEl) { barEl.style.width=usedPct+'%'; barEl.style.background=barCol; }
+      var pctEl = el('budpct_'+projId);
+      if (pctEl) pctEl.textContent = usedPct+'%';
+    }
+  }
 }
 
 function submitHours() {
