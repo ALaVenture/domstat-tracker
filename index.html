@@ -2162,11 +2162,12 @@ function buildFund() {
     for (var yr = startDate.getFullYear(); yr <= endDate.getFullYear(); yr++) {
       var fyEnd = new Date(yr, 5, 30); // June 30
       if (fyEnd <= startDate || fyEnd >= endDate) continue;
+      if (fyEnd < new Date(2026, 5, 30)) continue; // FY27+ only
       var daysToFYEnd = Math.ceil((fyEnd - today) / (24*60*60*1000));
       // Show if within 60 days OR already past but not yet marked renewed for this FY
       var fyKey = 'fy_renewed_'+p.id+'_'+yr;
       var alreadyMarked = p.notes && p.notes.indexOf('FY'+yr+' RENEWED') > -1;
-      if (!alreadyMarked && daysToFYEnd <= 60) {
+      if (!alreadyMarked && daysToFYEnd <= 90) {
         var nextFYStart = new Date(yr, 6, 1); // July 1
         renewalAlerts.push({
           project: p,
@@ -2197,7 +2198,7 @@ function buildFund() {
     h += '<div style="margin-bottom:1.5rem">';
     h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
     h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#854F0B" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#854F0B" stroke-width="2" stroke-linecap="round"/></svg>';
-    h += '<span style="font-size:12px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em">Renewal due soon ('+renewalAlerts.length+')</span></div>';
+    h += '<span style="font-size:12px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em">FY27+ renewals required ('+renewalAlerts.length+')</span></div>';
     renewalAlerts.forEach(function(alert){
       var p = alert.project;
       var daysLabel = alert.overdue ? 
