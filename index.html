@@ -2147,12 +2147,37 @@ function buildFund() {
     return bOut - aOut;
   });
 
-  // Renewal alerts — multi-year % effort projects within 60 days of end date
-  var renewalAlerts = projects.filter(function(p){
-    if (p.type !== 'pct' || !p.end) return false;
+  // Renewal alerts — multi-year % effort projects (>12 months) approaching fiscal year end (June 30)
+  // Show alert 60 days before each June 30 that falls within the project's period of performance
+  // Stay visible until FM marks it processed for that fiscal year
+  var renewalAlerts = [];
+  projects.forEach(function(p) {
+    if (p.type !== 'pct' || !p.start || !p.end) return;
+    var startDate = new Date(p.start);
     var endDate = new Date(p.end);
-    var daysLeft = Math.ceil((endDate - today) / (24*60*60*1000));
-    return daysLeft > 0 && daysLeft <= 60;
+    // Only multi-year projects (>12 months)
+    var totalMonths = (endDate.getFullYear()-startDate.getFullYear())*12 + (endDate.getMonth()-startDate.getMonth());
+    if (totalMonths <= 12) return;
+    // Find all June 30s within the project period
+    for (var yr = startDate.getFullYear(); yr <= endDate.getFullYear(); yr++) {
+      var fyEnd = new Date(yr, 5, 30); // June 30
+      if (fyEnd <= startDate || fyEnd >= endDate) continue;
+      var daysToFYEnd = Math.ceil((fyEnd - today) / (24*60*60*1000));
+      // Show if within 60 days OR already past but not yet marked renewed for this FY
+      var fyKey = 'fy_renewed_'+p.id+'_'+yr;
+      var alreadyMarked = p.notes && p.notes.indexOf('FY'+yr+' RENEWED') > -1;
+      if (!alreadyMarked && daysToFYEnd <= 60) {
+        var nextFYStart = new Date(yr, 6, 1); // July 1
+        renewalAlerts.push({
+          project: p,
+          fyEnd: fyEnd,
+          nextFYStart: nextFYStart,
+          daysLeft: daysToFYEnd,
+          fiscalYear: yr,
+          overdue: daysToFYEnd < 0
+        });
+      }
+    }
   });
 
   var totalOutstanding = outstanding.reduce(function(a,p){
@@ -2173,17 +2198,25 @@ function buildFund() {
     h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
     h += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#854F0B" stroke-width="2"/><path d="M12 7v5l3 3" stroke="#854F0B" stroke-width="2" stroke-linecap="round"/></svg>';
     h += '<span style="font-size:12px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em">Renewal due soon ('+renewalAlerts.length+')</span></div>';
-    renewalAlerts.forEach(function(p){
-      var endDate = new Date(p.end);
-      var daysLeft = Math.ceil((endDate - today)/(24*60*60*1000));
-      h += '<div style="border:1.5px solid #EF9F27;border-radius:10px;padding:12px 16px;margin-bottom:8px;background:#FFFDF7;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">';
+    renewalAlerts.forEach(function(alert){
+      var p = alert.project;
+      var daysLabel = alert.overdue ? 
+        '<span style="font-size:12px;font-weight:700;color:#A32D2D;background:#FCEBEB;padding:3px 10px;border-radius:20px">OVERDUE</span>' :
+        '<span style="font-size:12px;font-weight:700;color:#854F0B;background:#FAEEDA;padding:3px 10px;border-radius:20px">'+alert.daysLeft+' days to FY end</span>';
+      h += '<div style="border:1.5px solid '+(alert.overdue?'#E24B4A':'#EF9F27')+';border-radius:10px;padding:12px 16px;margin-bottom:8px;background:'+(alert.overdue?'#FFF5F5':'#FFFDF7')+';display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">';
       h += '<div>';
       h += '<div style="font-weight:700;font-size:13px;color:#1a1a1a">'+p.project+'</div>';
-      h += '<div style="font-size:12px;color:#888;margin-top:3px">PI: '+p.pi+' &middot; Expires: '+fmtDate(p.end)+'</div>';
+      h += '<div style="font-size:12px;color:#888;margin-top:3px">';
+      h += 'PI: '+p.pi+' &middot; ';
+      h += 'FY ends: '+fmtDate(alert.fyEnd)+' &middot; ';
+      h += 'New FY starts: '+fmtDate(alert.nextFYStart)+' &middot; ';
+      h += 'Project ends: '+fmtDate(p.end);
       h += '</div>';
-      h += '<div style="display:flex;align-items:center;gap:8px">';
-      h += '<span style="font-size:12px;font-weight:700;color:#854F0B;background:#FAEEDA;padding:3px 10px;border-radius:20px">'+daysLeft+' days left</span>';
-      h += '<button class="btn btn-sm" style="font-size:11px;border-color:#EF9F27;color:#854F0B" data-renew="'+p.id+'">Renew project</button>';
+      h += '<div style="font-size:11px;color:#854F0B;margin-top:3px">Annual recharge renewal required for FY '+(alert.fiscalYear+1)+'</div>';
+      h += '</div>';
+      h += '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+      h += daysLabel;
+      h += '<button class="btn btn-sm" style="font-size:11px;border-color:#EF9F27;color:#854F0B" data-renew="'+p.id+'" data-fy="'+alert.fiscalYear+'">Process FY'+(alert.fiscalYear+1)+' renewal</button>';
       h += '</div></div>';
     });
     h += '</div>';
@@ -2249,7 +2282,7 @@ function buildFund() {
     });
   });
   document.querySelectorAll('[data-renew]').forEach(function(btn){
-    btn.addEventListener('click', function(){ openRenewalModal(this.getAttribute('data-renew')); });
+    btn.addEventListener('click', function(){ openRenewalModal(this.getAttribute('data-renew'), this.getAttribute('data-fy')||''); });
   });
 }
 
@@ -2323,7 +2356,7 @@ function buildFundPIGroup(list) {
   return h;
 }
 
-function openRenewalModal(pid) {
+function openRenewalModal(pid, fy) {
   var p = projects.filter(function(x){return x.id===pid;})[0];
   if (!p) return;
   var endDate = new Date(p.end);
@@ -2345,11 +2378,12 @@ function openRenewalModal(pid) {
   h += '<div style="background:#EAF3DE;border-radius:8px;padding:10px 14px;margin-bottom:1rem;font-size:13px;color:#3B6D11">A new invoice will be created for this renewal period. Current billed amount: <strong>'+fmtMoney(billed)+'</strong></div>';
   h += '<div class="actions">';
   h += '<button class="btn" id="renCancelBtn">Cancel</button>';
-  h += '<button class="btn btn-primary" id="renConfirmBtn">Confirm renewal</button>';
+  h += '<button class="btn btn-primary" id="renConfirmBtn" data-fy="'+(fy||'')+'" data-pid="'+pid+'">Confirm FY'+(fy?parseInt(fy)+1:'')+' renewal</button>';
   h += '</div>';
   openModal(h);
   el('renCancelBtn').addEventListener('click', closeModal);
   el('renConfirmBtn').addEventListener('click', function(){
+    var fy = this.getAttribute('data-fy') || '';
     var newEnd = gv('ren_newEnd');
     if (!newEnd) { alert('Please enter a new end date.'); return; }
     p.end = newEnd;
@@ -2359,7 +2393,8 @@ function openRenewalModal(pid) {
     p.invoiceStatus = 'pending';
     p.fundManagerStatus = 'pending';
     p.projectStatus = 'Active Project';
-    var renewNote = 'RENEWED on '+new Date().toISOString().split('T')[0]+'. New end: '+newEnd+(gv('ren_notes')?'\nNotes: '+gv('ren_notes'):'');
+    var fyYr = this.getAttribute('data-fy') || '';
+    var renewNote = 'FY'+(fyYr?parseInt(fyYr)+1:'')+' RENEWED on '+new Date().toISOString().split('T')[0]+'. New end: '+newEnd+(gv('ren_notes')?'\nNotes: '+gv('ren_notes'):'');
     p.notes = p.notes ? p.notes+'\n\n'+renewNote : renewNote;
     saveRecord('update', projectToRow(p), 'Sheet1');
     closeModal();
