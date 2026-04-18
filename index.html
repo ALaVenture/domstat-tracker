@@ -4325,7 +4325,7 @@ function requestNewSkill(category){
 function buildStaffSkills(){
   var allStaff=STAFF.concat(FACULTY).concat(['David Elashoff']);
   var tax=getAllSkills();
-  var allSkillsList=Object.keys(tax).reduce(function(a,k){return a.concat(tax[k]);});
+  var allSkillsList=[];Object.keys(tax).forEach(function(k){if(Array.isArray(tax[k]))tax[k].forEach(function(v){allSkillsList.push(v);});});
   var pendingReqs=skillRequests.filter(function(r){return r.status==='pending';});
   var h='<div class="card"><div class="section-hdr" style="margin-bottom:1rem">';
   h+='<span class="card-title" style="margin:0">Staff skills &amp; competencies</span>';
