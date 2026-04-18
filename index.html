@@ -148,7 +148,7 @@ textarea{resize:vertical;min-height:60px}
 </div>
 <script>
 
-const API="https://script.google.com/macros/s/AKfycbwKW02S6ay9OkCyccWegXkxKM6gLMwWSiCvBpxYx2cKDp9nc4hVggmrWqsbMGGuttA/exec";
+const API="https://script.google.com/macros/s/AKfycbxoi-JHwYN6S348LQ7x-x1w35ZapmWvNVn9I-gsZ56Kbp-tKDux2-D9KReNrY8hm5HB/exec";
 const STAFF=["Angelique Rubio", "Angshuman Saha", "Arseniy Vasilyev", "Chris Castle", "Claudia Perez", "Daniela Markovic", "Dennis Ruenger", "Eric Demer", "Estefania Sanchez Salas", "Holly Wilhalme", "Jenny Brook", "Jinhui Liu", "Josh Lee", "Keren Chen", "Lillian Chen", "Lucia Chen", "Mei Leng", "Paige Smith", "Rebecca Chung", "Rong Guo", "Sitaram Vangala", "Tahmineh Romero", "Tristan Grogan", "Tristan Tibbe", "Victoria Adebambo", "Yash Motwani"];
 const FACULTY=["Chi-Hong Tseng", "Nicholas Jackson", "Alexandra Klomhaus", "Li-Jung Liang", "Myung Sim", "Yiqun Jiang", "Anita Yuan"];
 const STAFF_SALARY={
@@ -214,7 +214,7 @@ const PROF_BG={Beginner:"#E6F1FB",Proficient:"#EAF3DE",Expert:"#EEEDFE"};
 const PROF_COL={Beginner:"#185FA5",Proficient:"#3B6D11",Expert:"#3C3489"};
 
 // ── State ──────────────────────────────────────────────────────────────────
-var projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[],fyFunding=[];
+var projects=[],hoursData=[],approvals=[],facultyHours=[],facultyPubs=[],facultyGrants=[],fyFunding=[],notifications=[];
 var profilesData={},skillRequests=[],intakeTeam=[];
 var session={role:"public",name:null,piEmail:null};
 var currentPage="intake";
@@ -451,6 +451,7 @@ function loadData(manual){
     if(Array.isArray(fpd))facultyPubs=fpd.filter(function(r){return r.id;});
     if(Array.isArray(fgd))facultyGrants=fgd.filter(function(r){return r.id;});
     if(Array.isArray(fyd))fyFunding=fyd.filter(function(r){return r.id;});
+    if(Array.isArray(nd))notifications=nd.filter(function(r){return r.id;});
     setSyncStatus("ok",(manual?"Refreshed — ":"Connected — ")+projects.length+" project"+(projects.length!==1?"s":""));
     setTimeout(function(){setSyncStatus("ok","Live — Google Sheets");},3000);
     try { renderNav(); } catch(navErr) { console.error('DOMStat renderNav error:', navErr); }
@@ -577,6 +578,196 @@ function renderFYFundingTable(fy) {
   });
   h += '</tbody></table></div>';
   sh('fyFundingContent', h);
+}
+
+
+// ── STAFF ASSIGNMENT + NOTIFICATIONS ─────────────────────────────────────
+
+function getMyNotifications() {
+  return notifications.filter(function(n) {
+    return n.staffName === session.name && n.read !== 'yes';
+  });
+}
+
+function markNotificationRead(nid) {
+  var n = notifications.filter(function(x){ return x.id === nid; })[0];
+  if (!n) return;
+  n.read = 'yes';
+  saveRecord('update', n, 'notifications');
+}
+
+function markAllNotificationsRead() {
+  getMyNotifications().forEach(function(n) {
+    n.read = 'yes';
+    saveRecord('update', n, 'notifications');
+  });
+  renderPage(currentPage);
+}
+
+function sendAssignmentNotification(staffName, project, assignedBy) {
+  var rec = {
+    id: String(Date.now()) + '_' + Math.random().toString(36).substr(2,5),
+    staffName: staffName,
+    type: 'assignment',
+    projectId: project.id,
+    projectName: project.project,
+    pi: project.pi,
+    message: 'You have been assigned to: ' + project.project + ' (PI: ' + project.pi + ')',
+    assignedBy: assignedBy,
+    assignedDate: new Date().toISOString().split('T')[0],
+    read: 'no'
+  };
+  notifications.push(rec);
+  saveRecord('add', rec, 'notifications');
+}
+
+function sendRemovalNotification(staffName, project, removedBy) {
+  var rec = {
+    id: String(Date.now()) + '_' + Math.random().toString(36).substr(2,5),
+    staffName: staffName,
+    type: 'removal',
+    projectId: project.id,
+    projectName: project.project,
+    pi: project.pi,
+    message: 'You have been removed from: ' + project.project + ' (PI: ' + project.pi + ')',
+    assignedBy: removedBy,
+    assignedDate: new Date().toISOString().split('T')[0],
+    read: 'no'
+  };
+  notifications.push(rec);
+  saveRecord('add', rec, 'notifications');
+}
+
+// ── ASSIGN STAFF MODAL ────────────────────────────────────────────────────
+function openAssignStaffModal(pid) {
+  var p = projects.filter(function(x){ return x.id === pid; })[0];
+  if (!p) return;
+
+  var currentTeam = (p.team || []).map(function(m){ return m.name; });
+
+  var h = '<div class="modal-title">Assign staff &mdash; ' + p.project + '</div>';
+  h += '<div style="font-size:12px;color:#888;margin-bottom:1rem">PI: ' + p.pi + ' &middot; Type: ' + typeLabel(p.type) + '</div>';
+
+  // Current team
+  h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Current team</div>';
+  if ((p.team||[]).length) {
+    h += '<div id="assignCurrentTeam">';
+    (p.team||[]).forEach(function(m) {
+      h += buildTeamMemberRow(m, p.type, true);
+    });
+    h += '</div>';
+  } else {
+    h += '<div id="assignCurrentTeam"><div style="font-size:12px;color:#aaa;font-style:italic;margin-bottom:8px">No staff assigned yet</div></div>';
+  }
+
+  // Add staff
+  h += '<div style="height:1px;background:#f0f0f0;margin:1rem 0"></div>';
+  h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Add staff member</div>';
+  h += '<div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:1rem">';
+  h += '<div style="flex:1;min-width:160px"><label style="font-size:11px;color:#888;display:block;margin-bottom:4px">Staff member</label>';
+  h += '<select id="assignStaffSelect" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ccc;border-radius:8px"><option value="">Select staff...</option>';
+  STAFF.forEach(function(name) {
+    var already = currentTeam.indexOf(name) > -1;
+    h += '<option value="' + name + '"' + (already?' disabled style="color:#ccc"':'') + '>' + name + (already?' (assigned)':'') + '</option>';
+  });
+  h += '</select></div>';
+  if (p.type === 'pct') {
+    h += '<div style="width:90px"><label style="font-size:11px;color:#888;display:block;margin-bottom:4px">% Effort</label>';
+    h += '<input type="number" id="assignPctInput" min="1" max="100" placeholder="e.g. 25" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ccc;border-radius:8px"></div>';
+  }
+  h += '<div style="width:80px"><label style="font-size:11px;color:#888;display:block;margin-bottom:4px">Lead?</label>';
+  h += '<select id="assignLeadSelect" style="width:100%;font-size:13px;padding:7px 10px;border:1px solid #ccc;border-radius:8px"><option value="no">No</option><option value="yes">Yes</option></select></div>';
+  h += '<button class="btn btn-sm btn-primary" id="assignAddBtn" style="height:36px;align-self:flex-end">Add</button>';
+  h += '</div>';
+
+  h += '<div class="err-msg" id="assignErr">Please select a staff member.</div>';
+
+  h += '<div class="actions">';
+  h += '<button class="btn" id="assignCancelBtn">Cancel</button>';
+  h += '<button class="btn btn-primary" id="assignSaveBtn">Save assignments</button>';
+  h += '</div>';
+
+  openModal(h);
+
+  // Track pending changes
+  var pendingTeam = JSON.parse(JSON.stringify(p.team || []));
+  var addedNames = [];
+  var removedNames = [];
+
+  function rebuildCurrentTeamUI() {
+    var container = document.getElementById('assignCurrentTeam');
+    if (!container) return;
+    if (!pendingTeam.length) {
+      container.innerHTML = '<div style="font-size:12px;color:#aaa;font-style:italic;margin-bottom:8px">No staff assigned</div>';
+      return;
+    }
+    container.innerHTML = pendingTeam.map(function(m){ return buildTeamMemberRow(m, p.type, true); }).join('');
+    container.querySelectorAll('[data-remove-staff]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var name = this.getAttribute('data-remove-staff');
+        var wasOriginal = (p.team||[]).some(function(m){ return m.name === name; });
+        pendingTeam = pendingTeam.filter(function(m){ return m.name !== name; });
+        addedNames = addedNames.filter(function(n){ return n !== name; });
+        if (wasOriginal) removedNames.push(name);
+        rebuildCurrentTeamUI();
+        // Re-enable in select
+        var opt = document.querySelector('#assignStaffSelect option[value="'+name+'"]');
+        if (opt) { opt.disabled = false; opt.style.color=''; opt.textContent = name; }
+      });
+    });
+  }
+
+  // Attach remove handlers for initial team
+  rebuildCurrentTeamUI();
+
+  document.getElementById('assignAddBtn').addEventListener('click', function() {
+    var name = document.getElementById('assignStaffSelect').value;
+    var pct = p.type === 'pct' ? (parseInt(document.getElementById('assignPctInput').value)||0) : 0;
+    var lead = document.getElementById('assignLeadSelect').value === 'yes';
+    var errEl = document.getElementById('assignErr');
+    if (!name) { errEl.style.display='block'; return; }
+    errEl.style.display='none';
+    // Check not already in pending
+    if (pendingTeam.some(function(m){ return m.name===name; })) return;
+    pendingTeam.push({name:name, pct:pct, lead:lead});
+    if ((p.team||[]).every(function(m){ return m.name !== name; })) addedNames.push(name);
+    removedNames = removedNames.filter(function(n){ return n !== name; });
+    rebuildCurrentTeamUI();
+    // Disable in select
+    var opt = document.querySelector('#assignStaffSelect option[value="'+name+'"]');
+    if (opt) { opt.disabled=true; opt.style.color='#ccc'; opt.textContent = name+' (assigned)'; }
+    document.getElementById('assignStaffSelect').value = '';
+    if (document.getElementById('assignPctInput')) document.getElementById('assignPctInput').value = '';
+  });
+
+  document.getElementById('assignCancelBtn').addEventListener('click', closeModal);
+
+  document.getElementById('assignSaveBtn').addEventListener('click', function() {
+    p.team = pendingTeam;
+    saveRecord('update', projectToRow(p), 'Sheet1');
+    // Send notifications
+    var assigner = session.name || session.role;
+    addedNames.forEach(function(name) { sendAssignmentNotification(name, p, assigner); });
+    removedNames.forEach(function(name) { sendRemovalNotification(name, p, assigner); });
+    closeModal();
+    // Refresh current page
+    renderPage(currentPage);
+  });
+}
+
+function buildTeamMemberRow(m, projType, showRemove) {
+  var canEdit = ['admin','director','assocdir','staffmgr'].indexOf(session.role) > -1;
+  var h = '<div style="display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid #e8e8e5;border-radius:8px;margin-bottom:5px;background:#fff">';
+  h += '<div style="width:28px;height:28px;border-radius:50%;background:#0a1628;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:#fff;flex-shrink:0">'+initials(m.name)+'</div>';
+  h += '<div style="flex:1"><div style="font-size:13px;font-weight:600">'+m.name+'</div>';
+  if (m.lead) h += '<span style="font-size:10px;background:#EEEDFE;color:#3C3489;padding:1px 7px;border-radius:10px;font-weight:600">Lead</span> ';
+  if (projType==='pct' && m.pct) h += '<span style="font-size:11px;color:#185FA5;font-weight:600">'+m.pct+'% effort</span>';
+  h += '</div>';
+  if (showRemove && canEdit) {
+    h += '<button class="btn btn-sm" data-remove-staff="'+m.name+'" style="font-size:11px;color:#A32D2D;border-color:#f5c1c1;padding:3px 8px">&times; Remove</button>';
+  }
+  h += '</div>';
+  return h;
 }
 
 
@@ -1014,12 +1205,14 @@ function showDetail(id) {
   if (p.notes) h += '<div style="font-size:13px;background:#f5f5f5;padding:10px 12px;border-radius:8px;margin-bottom:1rem;color:#666">' + p.notes + '</div>';
   h += '<div class="actions">';
   if (canEdit) h += '<button class="btn btn-sm" id="detailEditBtn">Edit project</button>';
+  if (['admin','director','assocdir','staffmgr'].indexOf(session.role) > -1) h += '<button class="btn btn-sm btn-primary" id="detailAssignBtn">+ Assign staff</button>';
   if (['fund','admin','director','assocdir'].indexOf(session.role) > -1 && p.fundManagerStatus === 'pending') h += '<button class="btn btn-sm btn-primary" id="detailProcessBtn">Mark processed</button>';
   if (['fund','admin','director','assocdir'].indexOf(session.role) > -1) h += '<button class="btn btn-sm btn-success" id="detailInvoiceBtn">Send invoice</button>';
   h += '<button class="btn btn-sm" id="detailCloseBtn">Close</button>';
   h += '</div>';
   openModal(h);
   el('detailCloseBtn').addEventListener('click', closeModal);
+  var _dab=el('detailAssignBtn');if(_dab)_dab.addEventListener('click',function(){closeModal();openAssignStaffModal(p.id);});
   var editBtn = el('detailEditBtn');
   if (editBtn) editBtn.addEventListener('click', function() { closeModal(); openEditModal(id); });
   var procBtn = el('detailProcessBtn');
@@ -1045,6 +1238,19 @@ function buildDashboard() {
 
   // For non-admin roles keep the existing simple view
   if (!isAdmin) {
+    // Notification banner for new assignments
+    var myNotifs = getMyNotifications();
+    if (myNotifs.length) {
+      var notifBanner = '<div style="background:#E6F1FB;border-left:4px solid #185FA5;border-radius:8px;padding:12px 16px;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
+      notifBanner += '<div style="display:flex;align-items:center;gap:10px">';
+      notifBanner += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#185FA5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      notifBanner += '<div><div style="font-size:13px;font-weight:700;color:#185FA5">'+myNotifs.length+' new notification'+(myNotifs.length!==1?'s':'')+'</div><div style="font-size:12px;color:#3a6da8;margin-top:2px">';
+      myNotifs.slice(0,2).forEach(function(n){ notifBanner += '<div>&bull; '+n.message+'</div>'; });
+      if (myNotifs.length > 2) notifBanner += '<div style="color:#888">+ '+(myNotifs.length-2)+' more...</div>';
+      notifBanner += '</div></div></div>';
+      notifBanner += '<button class="btn btn-sm" id="markAllReadBtn" style="font-size:11px">Mark all read</button>';
+      notifBanner += '</div>';
+    }
     var myP = isStaff ? projects.filter(function(p){return (p.team||[]).some(function(m){return m.name===session.name;});}) :
       isFaculty ? projects.filter(function(p){return (p.team||[]).some(function(m){return m.name===session.name;})||p.pi===session.name;}) :
       projects;
@@ -1092,6 +1298,7 @@ function buildDashboard() {
     document.querySelectorAll('[data-detail]').forEach(function(row){row.addEventListener('click',function(){showDetail(this.getAttribute('data-detail'));});});
     var ga=el('gotoApprovals');if(ga)ga.addEventListener('click',function(e){e.preventDefault();renderPage('approvals');});
   var gf=el('gotoFunding');if(gf)gf.addEventListener('click',function(e){e.preventDefault();renderPage('stafffunding');});
+  var marb=el('markAllReadBtn');if(marb)marb.addEventListener('click',markAllNotificationsRead);
     return;
   }
 
@@ -1253,6 +1460,7 @@ function buildDashboard() {
   });
   var ga=el('gotoApprovals');if(ga)ga.addEventListener('click',function(e){e.preventDefault();renderPage('approvals');});
   var gf=el('gotoFunding');if(gf)gf.addEventListener('click',function(e){e.preventDefault();renderPage('stafffunding');});
+  var marb=el('markAllReadBtn');if(marb)marb.addEventListener('click',markAllNotificationsRead);
   var gs=el('gotoSkills');if(gs)gs.addEventListener('click',function(e){e.preventDefault();renderPage('staffskills');});
   var gp=el('gotoProjects');if(gp)gp.addEventListener('click',function(e){e.preventDefault();renderPage('allprojects');});
 }
@@ -1318,6 +1526,68 @@ function buildMyProjects() {
   if (!myP.length) {
     h += '<div class="empty">You are not assigned to any projects yet.</div>';
   } else {
+    // Recently assigned = projects added in last 30 days based on notifications
+    var thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate()-30);
+    var recentlyAssigned = myP.filter(function(p) {
+      return notifications.some(function(n) {
+        return n.staffName===session.name && n.type==='assignment' &&
+               n.projectId===p.id && new Date(n.assignedDate) >= thirtyDaysAgo;
+      });
+    });
+
+    if (recentlyAssigned.length) {
+      h += '<div style="margin-bottom:1.5rem">';
+      h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">';
+      h += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#185FA5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+      h += '<span style="font-size:12px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:.06em">Recently assigned ('+recentlyAssigned.length+')</span>';
+      h += '</div>';
+      recentlyAssigned.forEach(function(p) {
+        var notif = notifications.filter(function(n){ return n.staffName===session.name&&n.projectId===p.id&&n.type==='assignment'; })[0];
+        var me = (p.team||[]).filter(function(m){ return m.name===session.name; })[0];
+        var totalEffort = (p.team||[]).reduce(function(a,m){ return a+(Number(m.pct)||0); }, 0);
+        h += '<div style="border:2px solid #185FA5;border-radius:10px;background:#f0f6ff;padding:14px 16px;margin-bottom:8px;cursor:pointer" data-detail="'+p.id+'">';
+        h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:8px">';
+        h += '<div>';
+        h += '<div style="font-weight:700;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
+        h += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+        h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+        h += durationTagHtml(p);
+        h += '<span style="font-size:11px;background:#185FA5;color:#fff;padding:2px 8px;border-radius:20px;font-weight:600">New assignment</span>';
+        if (me&&me.lead) h += '<span class="badge badge-lead">Lead</span>';
+        if (me&&me.pct) h += '<span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 8px;border-radius:20px">'+me.pct+'% effort</span>';
+        h += '</div></div>';
+        h += '<div style="text-align:right;flex-shrink:0">';
+        h += '<div style="font-size:11px;color:#185FA5;font-weight:600">Assigned '+fmtDate(notif?notif.assignedDate:'')+'</div>';
+        if (notif&&notif.assignedBy) h += '<div style="font-size:10px;color:#888">by '+notif.assignedBy+'</div>';
+        h += '</div></div>';
+        // Project details
+        h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px;margin-bottom:8px">';
+        h += '<div><span style="color:#888">PI: </span><span style="font-weight:600">'+p.pi+'</span></div>';
+        h += '<div><span style="color:#888">Start: </span><span style="font-weight:600">'+fmtDate(p.start)+'</span></div>';
+        h += '<div><span style="color:#888">End: </span><span style="font-weight:600">'+fmtDate(p.end)+'</span></div>';
+        h += '<div><span style="color:#888">Status: </span><span>'+p.projectStatus+'</span></div>';
+        h += '</div>';
+        if (p.scopeSummary) h += '<div style="font-size:12px;color:#185FA5;background:#daeaff;padding:7px 10px;border-radius:6px;margin-bottom:6px"><span style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Scope:</span>'+p.scopeSummary+'</div>';
+        if (p.nextSteps) h += '<div style="font-size:12px;color:#3B6D11;background:#EAF3DE;padding:7px 10px;border-radius:6px;margin-bottom:6px"><span style="font-weight:700;font-size:11px;text-transform:uppercase;letter-spacing:.04em;margin-right:6px">Next steps:</span>'+p.nextSteps+'</div>';
+        // Team
+        if ((p.team||[]).length) {
+          h += '<div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:4px">';
+          h += '<span style="font-size:11px;color:#888;font-weight:600">Team:</span>';
+          (p.team||[]).forEach(function(tm) {
+            h += '<div style="display:flex;align-items:center;gap:4px;background:#fff;padding:2px 8px 2px 4px;border-radius:20px;border:1px solid #c5d9f0">';
+            h += '<div style="width:16px;height:16px;border-radius:50%;background:#185FA5;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff">'+initials(tm.name)+'</div>';
+            h += '<span style="font-size:11px;color:#185FA5">'+tm.name.split(' ')[0]+'</span>';
+            if (tm.pct) h += '<span style="font-size:10px;color:#888">'+tm.pct+'%</span>';
+            h += '</div>';
+          });
+          if (totalEffort>0) h += '<span style="font-size:11px;font-weight:700;color:#FFD100;background:#0a1628;padding:2px 8px;border-radius:20px">'+totalEffort+'% total DOMStat</span>';
+          h += '</div>';
+        }
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+
     var cats = [
       {key:'current', label:'Current projects', icon:'&#9679;', color:'#3B6D11', bg:'#EAF3DE'},
       {key:'planned', label:'Upcoming & planned', icon:'&#9670;', color:'#185FA5', bg:'#E6F1FB'},
@@ -3571,6 +3841,7 @@ function getAvailLabel(pct) {
 }
 
 function buildAvailGrid(staffData, filter) {
+  var q = curQ(), yr = curYr();
   var filtered = staffData.filter(function(d) {
     if (filter === 'under50') return d.loggedPct < 50;
     if (filter === 'bandwidth') return d.loggedPct < 90;
@@ -3580,80 +3851,163 @@ function buildAvailGrid(staffData, filter) {
 
   if (!filtered.length) return '<div class="empty">No staff match this filter.</div>';
 
-  // Sort: oversubscribed first, then by loggedPct descending
   filtered.sort(function(a, b) {
     if (a.loggedPct > 100 && b.loggedPct <= 100) return -1;
     if (b.loggedPct > 100 && a.loggedPct <= 100) return 1;
     return b.loggedPct - a.loggedPct;
   });
 
-  var h = '<div style="overflow-x:auto"><table><thead><tr>';
-  h += '<th>Staff member</th>';
-  h += '<th>Logged ' + curQ() + ' hrs</th>';
-  h += '<th>Actual FTE %</th>';
-  h += '<th>Assigned % effort</th>';
-  h += '<th>Active projects</th>';
-  h += '<th>Status</th>';
-  h += '<th>Utilization</th>';
-  h += '<th></th>';
-  h += '</tr></thead><tbody>';
-
+  var h = '';
   filtered.forEach(function(d) {
     var col = getAvailColor(d.loggedPct);
     var bg = getAvailBg(d.loggedPct);
     var lbl = getAvailLabel(d.loggedPct);
     var barW = Math.min(100, d.loggedPct);
     var assignedBarW = Math.min(100, d.assignedPct);
+    var safeId = d.name.replace(/[^a-zA-Z0-9]/g, '_');
 
-    h += '<tr>';
-    h += '<td style="font-weight:600;font-size:13px">';
-    h += '<div style="display:flex;align-items:center;gap:8px">';
-    h += '<div style="width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#185FA5,#0C447C);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">' + initials(d.name) + '</div>';
-    h += d.name + ' ' + userBadge(d.name);
-    h += '</div></td>';
-
-    h += '<td style="font-weight:600">' + fmtHrs(d.loggedHrs) + ' hrs</td>';
-
-    h += '<td>';
-    h += '<div style="display:flex;align-items:center;gap:8px">';
-    h += '<div style="width:80px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden;flex-shrink:0">';
-    h += '<div style="width:' + barW + '%;height:100%;background:' + col + ';border-radius:4px"></div></div>';
-    h += '<span style="font-weight:700;color:' + col + '">' + d.loggedPct + '%</span>';
-    h += '</div></td>';
-
-    h += '<td>';
-    if (d.assignedPct > 0) {
-      h += '<div style="display:flex;align-items:center;gap:8px">';
-      h += '<div style="width:80px;height:8px;background:#e5e5e5;border-radius:4px;overflow:hidden;flex-shrink:0">';
-      h += '<div style="width:' + assignedBarW + '%;height:100%;background:#185FA5;border-radius:4px"></div></div>';
-      h += '<span style="font-weight:600;color:#185FA5">' + d.assignedPct + '%</span>';
-      h += '</div>';
+    // Build project detail rows for this staff member
+    var staffProjects = projects.filter(function(p) {
+      return ['active','upcoming'].indexOf(p.status) > -1 &&
+        (p.team||[]).some(function(m) { return m.name === d.name; });
+    });
+    var projectRows = '';
+    if (!staffProjects.length) {
+      projectRows = '<div style="font-size:12px;color:#aaa;padding:10px 0;font-style:italic">No active projects assigned.</div>';
     } else {
-      h += '<span style="font-size:12px;color:#aaa">No % effort projects</span>';
+      // Sort by most hours logged first
+      staffProjects.sort(function(a, b) {
+        var aH = d.byProject[a.id] || 0;
+        var bH = d.byProject[b.id] || 0;
+        return bH - aH;
+      });
+      projectRows += '<div style="overflow-x:auto"><table style="width:100%;font-size:12px">';
+      projectRows += '<thead><tr style="background:#f0f4ff">';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:left">Project</th>';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:left">PI</th>';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:left">Type</th>';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:center">% Effort</th>';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:center">'+q+' hrs logged</th>';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:right">'+q+' billing</th>';
+      projectRows += '<th style="padding:7px 10px;font-weight:700;color:#185FA5;text-align:right">All-time hrs</th>';
+      projectRows += '</tr></thead><tbody>';
+
+      staffProjects.forEach(function(p, idx) {
+        var me = (p.team||[]).filter(function(m){ return m.name === d.name; })[0];
+        var qHrs = d.byProject[p.id] || 0;
+        var qBill = Math.round(qHrs * (RATES[d.name]||66.08) * 100) / 100;
+        var allHrs = hoursData.filter(function(h){ return h.projectId===p.id && h.staffName===d.name; })
+                              .reduce(function(a,h){ return a+h.hours; }, 0);
+        var rowBg = idx % 2 === 0 ? '#ffffff' : '#fafafa';
+
+        projectRows += '<tr style="background:'+rowBg+';border-bottom:1px solid #f0f0f0">';
+        projectRows += '<td style="padding:8px 10px;font-weight:600;color:#1a1a1a;max-width:220px">';
+        projectRows += '<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+p.project+'">'+p.project+'</div>';
+        projectRows += '</td>';
+        projectRows += '<td style="padding:8px 10px;color:#555">'+p.pi+'</td>';
+        projectRows += '<td style="padding:8px 10px"><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
+        projectRows += '<td style="padding:8px 10px;text-align:center">';
+        if (me && me.pct) {
+          projectRows += '<span style="font-weight:700;color:#185FA5">'+me.pct+'%</span>';
+        } else {
+          projectRows += '<span style="color:#aaa">&mdash;</span>';
+        }
+        projectRows += '</td>';
+        projectRows += '<td style="padding:8px 10px;text-align:center">';
+        if (qHrs > 0) {
+          projectRows += '<span style="font-weight:700;color:#3B6D11">'+fmtHrs(qHrs)+' hrs</span>';
+          // Mini bar showing proportion of total q hrs
+          var barPct = d.loggedHrs > 0 ? Math.round(qHrs/d.loggedHrs*100) : 0;
+          projectRows += '<div style="width:60px;height:4px;background:#e5e5e5;border-radius:2px;overflow:hidden;margin:3px auto 0">';
+          projectRows += '<div style="width:'+barPct+'%;height:100%;background:#3B6D11;border-radius:2px"></div></div>';
+        } else {
+          projectRows += '<span style="color:#bbb;font-style:italic">None yet</span>';
+        }
+        projectRows += '</td>';
+        projectRows += '<td style="padding:8px 10px;text-align:right;font-weight:600;color:'+(qHrs>0?'#3B6D11':'#bbb')+'">'+( qHrs>0?fmtMoney(qBill):'&mdash;')+'</td>';
+        projectRows += '<td style="padding:8px 10px;text-align:right;color:#555">'+fmtHrs(allHrs)+' hrs</td>';
+        projectRows += '</tr>';
+      });
+      projectRows += '</tbody></table></div>';
     }
-    h += '</td>';
 
-    h += '<td style="font-size:13px">' + d.activeProjects + ' active</td>';
+    // Main card row
+    h += '<div style="border:1px solid #e8e8e5;border-radius:10px;margin-bottom:8px;overflow:hidden">';
 
-    h += '<td><span style="font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;background:' + bg + ';color:' + col + '">' + lbl + '</span></td>';
+    // Clickable header
+    h += '<div class="avail-row-hdr" data-avail-toggle="'+safeId+'" style="display:flex;align-items:center;gap:12px;padding:12px 16px;cursor:pointer;background:#fff;user-select:none">';
 
-    // Mini utilization bar showing logged vs assigned
-    h += '<td>';
-    h += '<div style="font-size:10px;color:#aaa;margin-bottom:3px">Logged vs assigned</div>';
-    h += '<div style="position:relative;width:100px;height:14px;background:#f0f0f0;border-radius:7px;overflow:hidden">';
-    h += '<div style="position:absolute;left:0;top:0;width:' + barW + '%;height:100%;background:' + col + ';border-radius:7px;opacity:.9"></div>';
+    // Avatar
+    h += '<div style="width:34px;height:34px;border-radius:50%;background:#0a1628;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(d.name)+'</div>';
+
+    // Name + badge
+    h += '<div style="flex:1;min-width:0">';
+    h += '<div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">'+d.name+' '+userBadge(d.name)+'</div>';
+    h += '<div style="font-size:11px;color:#888;margin-top:2px">'+d.activeProjects+' active project'+(d.activeProjects!==1?'s':'')+'</div>';
+    h += '</div>';
+
+    // Logged hrs
+    h += '<div style="text-align:center;min-width:70px">';
+    h += '<div style="font-size:15px;font-weight:800;color:'+col+'">'+fmtHrs(d.loggedHrs)+'</div>';
+    h += '<div style="font-size:10px;color:#aaa">'+q+' hrs</div>';
+    h += '</div>';
+
+    // FTE %
+    h += '<div style="text-align:center;min-width:80px">';
+    h += '<div style="font-size:15px;font-weight:800;color:'+col+'">'+d.loggedPct+'%</div>';
+    h += '<div style="font-size:10px;color:#aaa">FTE utilization</div>';
+    h += '</div>';
+
+    // Assigned %
     if (d.assignedPct > 0) {
-      h += '<div style="position:absolute;left:0;top:0;width:' + assignedBarW + '%;height:100%;border:2px solid #185FA5;border-radius:7px;box-sizing:border-box"></div>';
+      h += '<div style="text-align:center;min-width:80px">';
+      h += '<div style="font-size:15px;font-weight:700;color:#185FA5">'+d.assignedPct+'%</div>';
+      h += '<div style="font-size:10px;color:#aaa">assigned</div>';
+      h += '</div>';
     }
-    h += '</div></td>';
 
-    h += '<td><button class="btn btn-sm" data-avail-detail="' + d.name + '">Details</button></td>';
-    h += '</tr>';
+    // Status pill
+    h += '<span style="font-size:11px;padding:4px 12px;border-radius:20px;font-weight:600;background:'+bg+';color:'+col+';flex-shrink:0">'+lbl+'</span>';
+
+    // Progress bar
+    h += '<div style="min-width:100px;flex-shrink:0">';
+    h += '<div style="height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;position:relative">';
+    h += '<div style="width:'+barW+'%;height:100%;background:'+col+';border-radius:4px;transition:width .3s"></div>';
+    if (d.assignedPct > 0) {
+      h += '<div style="position:absolute;left:0;top:0;width:'+assignedBarW+'%;height:100%;border:1.5px solid #185FA5;border-radius:4px;box-sizing:border-box"></div>';
+    }
+    h += '</div></div>';
+
+    // Chevron
+    h += '<svg id="chev_'+safeId+'" width="16" height="16" viewBox="0 0 24 24" fill="none" style="flex-shrink:0;transition:transform .2s;color:#888"><path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+    h += '</div>'; // end header
+
+    // Expandable project details section (hidden by default)
+    h += '<div id="avail_detail_'+safeId+'" style="display:none;border-top:1px solid #f0f0f0;background:#f9fbff;padding:12px 16px">';
+    h += projectRows;
+    h += '</div>';
+
+    h += '</div>'; // end card
   });
 
-  h += '</tbody></table></div>';
   return h;
 }
+
+function attachAvailHandlers(staffData) {
+  document.querySelectorAll('.avail-row-hdr').forEach(function(hdr) {
+    hdr.addEventListener('click', function() {
+      var safeId = this.getAttribute('data-avail-toggle');
+      var detail = document.getElementById('avail_detail_' + safeId);
+      var chev = document.getElementById('chev_' + safeId);
+      if (!detail) return;
+      var open = detail.style.display !== 'none';
+      detail.style.display = open ? 'none' : 'block';
+      if (chev) chev.style.transform = open ? '' : 'rotate(180deg)';
+    });
+  });
+}
+
 
 function attachAvailHandlers(staffData) {
   document.querySelectorAll('[data-avail-detail]').forEach(function(btn) {
