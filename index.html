@@ -1238,69 +1238,222 @@ function buildDashboard() {
 
   // For non-admin roles keep the existing simple view
   if (!isAdmin) {
-    // Notification banner for new assignments
     var myNotifs = getMyNotifications();
-    if (myNotifs.length) {
-      var notifBanner = '<div style="background:#E6F1FB;border-left:4px solid #185FA5;border-radius:8px;padding:12px 16px;margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">';
-      notifBanner += '<div style="display:flex;align-items:center;gap:10px">';
-      notifBanner += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0" stroke="#185FA5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
-      notifBanner += '<div><div style="font-size:13px;font-weight:700;color:#185FA5">'+myNotifs.length+' new notification'+(myNotifs.length!==1?'s':'')+'</div><div style="font-size:12px;color:#3a6da8;margin-top:2px">';
-      myNotifs.slice(0,2).forEach(function(n){ notifBanner += '<div>&bull; '+n.message+'</div>'; });
-      if (myNotifs.length > 2) notifBanner += '<div style="color:#888">+ '+(myNotifs.length-2)+' more...</div>';
-      notifBanner += '</div></div></div>';
-      notifBanner += '<button class="btn btn-sm" id="markAllReadBtn" style="font-size:11px">Mark all read</button>';
-      notifBanner += '</div>';
-    }
     var myP = isStaff ? projects.filter(function(p){return (p.team||[]).some(function(m){return m.name===session.name;});}) :
       isFaculty ? projects.filter(function(p){return (p.team||[]).some(function(m){return m.name===session.name;})||p.pi===session.name;}) :
       projects;
-    var active=myP.filter(function(p){return p.status==='active';}).length;
-    var qHrs=hoursData.filter(function(h){return h.quarter===curQ()&&h.year===curYr()&&(!isStaff||h.staffName===session.name);}).reduce(function(a,h){return a+h.hours;},0);
-    var canFunds=['fund','admin','director','assocdir'].indexOf(session.role)>-1;
-    var outstanding=canFunds?myP.reduce(function(a,p){return a+Math.max(0,(Number(p.totalValue)||0)-(Number(p.fundsReceived)||0));},0):null;
-    var facHrsQ=isFaculty?facultyHours.filter(function(h){return h.facultyName===session.name&&h.quarter===curQ()&&h.year===curYr();}).reduce(function(a,h){return a+h.totalHours;},0):0;
-    var facPubs=isFaculty?facultyPubs.filter(function(p){return p.facultyName===session.name;}).length:0;
-    var facGrants=isFaculty?facultyGrants.filter(function(g){return g.facultyName===session.name;}).length:0;
-    var pendingAppr=canApprove()?approvals.filter(function(a){return a.status==='pending';}).length:0;
-    var pendingSkill=canApprove()?skillRequests.filter(function(r){return r.status==='pending';}).length:0;
-    var alerts='';
-    if(canApprove()&&pendingAppr)alerts+='<div class="alert alert-warn"><strong>'+pendingAppr+' change request'+(pendingAppr>1?'s':'')+'</strong> awaiting approval &mdash; <a href="#" id="gotoApprovals" style="color:inherit;font-weight:600">Review &rarr;</a></div>';
-    if(canApprove()&&pendingSkill)alerts+='<div class="alert alert-info"><strong>'+pendingSkill+' skill request'+(pendingSkill>1?'s':'')+'</strong> pending</div>';
-    var h='<div class="metrics">';
-    h+='<div class="metric"><div class="metric-label">'+(isFaculty?'My projects':isStaff?'My active':'Active')+' projects</div><div class="metric-value mv-blue">'+active+'</div></div>';
-    if(isFaculty){
-      h+='<div class="metric"><div class="metric-label">'+curQ()+' CTSI hours</div><div class="metric-value mv-purple">'+fmtHrs(facHrsQ)+'</div></div>';
-      h+='<div class="metric"><div class="metric-label">Publications</div><div class="metric-value mv-teal">'+facPubs+'</div></div>';
-      h+='<div class="metric"><div class="metric-label">Grants</div><div class="metric-value mv-amber">'+facGrants+'</div></div>';
-    } else {
-      h+='<div class="metric"><div class="metric-label">'+curQ()+' hours</div><div class="metric-value mv-purple">'+fmtHrs(qHrs)+'</div></div>';
-      if(canFunds)h+='<div class="metric"><div class="metric-label">Outstanding</div><div class="metric-value mv-red">'+fmtMoney(outstanding)+'</div></div>';
+
+    var active   = myP.filter(function(p){return p.status==='active';}).length;
+    var upcoming = myP.filter(function(p){return p.status==='upcoming';}).length;
+    var qHrs     = hoursData.filter(function(h){return h.staffName===session.name&&h.quarter===curQ()&&h.year===curYr();}).reduce(function(a,h){return a+h.hours;},0);
+
+    // What's new: assignments, approvals, skill updates
+    var newAssignments  = myNotifs.filter(function(n){return n.type==='assignment';});
+    var newRemovals     = myNotifs.filter(function(n){return n.type==='removal';});
+    var myPending       = approvals.filter(function(a){return a.requestedBy===session.name&&a.status==='pending';});
+    var myApproved      = approvals.filter(function(a){return a.requestedBy===session.name&&a.status==='approved';});
+    var myRejected      = approvals.filter(function(a){return a.requestedBy===session.name&&a.status==='rejected';});
+    var myProfile       = getProfile(session.name);
+    var mySkillCount    = (myProfile.skills||[]).length;
+    // Recently winding down projects
+    var windingDown     = myP.filter(function(p){return p.status==='winding'||daysLeft(p.end)<60&&daysLeft(p.end)>0;});
+    // Scope updates on my projects (updated in last 14 days)
+    var scopeUpdates    = myP.filter(function(p){
+      if (!p.scopeUpdatedDate) return false;
+      var d = new Date(p.scopeUpdatedDate);
+      var ago14 = new Date(); ago14.setDate(ago14.getDate()-14);
+      return d >= ago14;
+    });
+
+    var today = new Date();
+    var hour  = today.getHours();
+    var greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    var firstName = session.name ? session.name.split(' ')[0] : 'there';
+
+    var h = '';
+
+    // ── Welcome card ─────────────────────────────────────────────────────
+    h += "<div style=\"background:#0a1628;border-radius:12px;padding:20px 24px;margin-bottom:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px\">";
+    h += "<div>";
+    h += "<div style=\"font-size:22px;font-weight:800;color:#fff;margin-bottom:4px\">'+greeting+', '+firstName+' 👋</div>";
+    h += "<div style=\"font-size:13px;color:rgba(255,255,255,.55)\">";
+    h += curQ()+' '+curYr()+' &nbsp;&middot;&nbsp; ';
+    h += active+' active project'+(active!==1?'s':'')+' &nbsp;&middot;&nbsp; ';
+    h += fmtHrs(qHrs)+' hrs logged this quarter';
+    h += "</div></div>";
+    // Quick stats row
+    h += "<div style=\"display:flex;gap:16px;flex-wrap:wrap\">";
+    var quickStats = [
+      {val:active,     label:'Active',    col:'#5ba3f5'},
+      {val:upcoming,   label:'Upcoming',  col:'#EF9F27'},
+      {val:mySkillCount, label:'Skills',  col:'#9FE1CB'},
+    ];
+    quickStats.forEach(function(st){
+      h += "<div style=\"text-align:center\"><div style=\"font-size:24px;font-weight:800;color:'+st.col+'\">'+st.val+'</div>";
+      h += "<div style=\"font-size:11px;color:rgba(255,255,255,.45)\">'+st.label+'</div></div>";
+    });
+    h += "</div></div>";
+
+    // ── What's new section ───────────────────────────────────────────────
+    var hasNews = newAssignments.length || newRemovals.length || myApproved.length ||
+                  myRejected.length || scopeUpdates.length || windingDown.length;
+
+    if (hasNews) {
+      h += "<div style=\"background:#fff;border:1px solid #e8e8e5;border-radius:12px;padding:18px 20px;margin-bottom:1.25rem\">";
+      h += "<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px\">";
+      h += "<div style=\"display:flex;align-items:center;gap:8px\">";
+      h += "<div style=\"width:8px;height:8px;border-radius:50%;background:#185FA5;animation:pulse 2s infinite\"></div>";
+      h += "<span style=\"font-size:13px;font-weight:700;color:#1a1a1a\">What's new</span></div>";
+      if (myNotifs.length) h += "<button class=\"btn btn-sm\" id=\"markAllReadBtn\" style=\"font-size:11px\">Mark all read</button>";
+      h += "</div>";
+
+      // New assignments
+      if (newAssignments.length) {
+        h += "<div style=\"margin-bottom:12px\">";
+        h += "<div style=\"font-size:11px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px\">&#128204; New project assignment'+(newAssignments.length>1?'s':'')+'</div>";
+        newAssignments.forEach(function(n){
+          var p = projects.filter(function(x){ return x.id===n.projectId; })[0];
+          h += "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#f0f6ff;border-radius:8px;margin-bottom:5px;flex-wrap:wrap;gap:6px\">";
+          h += "<div>";
+          h += "<div style=\"font-size:13px;font-weight:600;color:#0a1628\">'+n.projectName+'</div>";
+          h += "<div style=\"font-size:11px;color:#888;margin-top:1px\">PI: '+n.pi+' &nbsp;&middot;&nbsp; Assigned by '+n.assignedBy+' on '+fmtDate(n.assignedDate)+'</div>";
+          if (p) {
+            h += "<div style=\"font-size:11px;color:#888;margin-top:1px\">'+fmtDate(p.start)+' &rarr; '+fmtDate(p.end)+durationTagHtml(p)+'</div>";
+          }
+          h += "</div>";
+          h += "<button class=\"btn btn-sm\" style=\"font-size:11px\" data-goto-project=\"'+n.projectId+'\" data-notif-id=\"'+n.id+'\">View project &rarr;</button>";
+          h += "</div>";
+        });
+        h += "</div>";
+      }
+
+      // Removed from project
+      if (newRemovals.length) {
+        h += "<div style=\"margin-bottom:12px\">";
+        h += "<div style=\"font-size:11px;font-weight:700;color:#A32D2D;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px\">&#128683; Removed from project'+(newRemovals.length>1?'s':'')+'</div>";
+        newRemovals.forEach(function(n){
+          h += "<div style=\"padding:8px 12px;background:#fff5f5;border-radius:8px;margin-bottom:5px\">";
+          h += "<div style=\"font-size:13px;font-weight:600;color:#A32D2D\">'+n.projectName+'</div>";
+          h += "<div style=\"font-size:11px;color:#888;margin-top:1px\">PI: '+n.pi+' &nbsp;&middot;&nbsp; '+fmtDate(n.assignedDate)+'</div>";
+          h += "</div>";
+        });
+        h += "</div>";
+      }
+
+      // Approved requests
+      if (myApproved.length) {
+        h += "<div style=\"margin-bottom:12px\">";
+        h += "<div style=\"font-size:11px;font-weight:700;color:#3B6D11;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px\">&#9989; Approval'+(myApproved.length>1?'s':'')+' received</div>";
+        myApproved.forEach(function(a){
+          h += "<div style=\"padding:8px 12px;background:#EAF3DE;border-radius:8px;margin-bottom:5px\">";
+          h += "<div style=\"font-size:13px;font-weight:600;color:#3B6D11\">'+a.fieldChanged+' update approved</div>";
+          h += "<div style=\"font-size:11px;color:#3B6D11;margin-top:1px\">Project: '+(a.projectName||a.projectId)+'</div>";
+          h += "</div>";
+        });
+        h += "</div>";
+      }
+
+      // Rejected requests
+      if (myRejected.length) {
+        h += "<div style=\"margin-bottom:12px\">";
+        h += "<div style=\"font-size:11px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px\">&#10060; Request'+(myRejected.length>1?'s':'')+' not approved</div>";
+        myRejected.forEach(function(a){
+          h += "<div style=\"padding:8px 12px;background:#FAEEDA;border-radius:8px;margin-bottom:5px\">";
+          h += "<div style=\"font-size:13px;font-weight:600;color:#854F0B\">'+a.fieldChanged+' request declined</div>";
+          h += "<div style=\"font-size:11px;color:#854F0B;margin-top:1px\">Project: '+(a.projectName||a.projectId)+'</div>";
+          h += "</div>";
+        });
+        h += "</div>";
+      }
+
+      // Scope updates on my projects
+      if (scopeUpdates.length) {
+        h += "<div style=\"margin-bottom:12px\">";
+        h += "<div style=\"font-size:11px;font-weight:700;color:#3C3489;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px\">&#128203; Project scope updated</div>";
+        scopeUpdates.forEach(function(p){
+          h += "<div style=\"padding:8px 12px;background:#EEEDFE;border-radius:8px;margin-bottom:5px;cursor:pointer\" data-detail=\"'+p.id+'\">";
+          h += "<div style=\"font-size:13px;font-weight:600;color:#3C3489\">'+p.project+'</div>";
+          h += "<div style=\"font-size:11px;color:#534AB7;margin-top:1px\">Updated by '+p.scopeUpdatedBy+' on '+fmtDate(p.scopeUpdatedDate)+'</div>";
+          if (p.nextSteps) h += "<div style=\"font-size:11px;color:#534AB7;margin-top:3px\"><strong>Next:</strong> '+p.nextSteps+'</div>";
+          h += "</div>";
+        });
+        h += "</div>";
+      }
+
+      // Winding down
+      if (windingDown.length) {
+        h += "<div style=\"margin-bottom:4px\">";
+        h += "<div style=\"font-size:11px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:7px\">&#9203; Project'+(windingDown.length>1?'s':'')+' ending soon</div>";
+        windingDown.forEach(function(p){
+          var dl = daysLeft(p.end);
+          h += "<div style=\"display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#FAEEDA;border-radius:8px;margin-bottom:5px;cursor:pointer;flex-wrap:wrap;gap:6px\" data-detail=\"'+p.id+'\">";
+          h += "<div><div style=\"font-size:13px;font-weight:600;color:#854F0B\">'+p.project+'</div>";
+          h += "<div style=\"font-size:11px;color:#854F0B;margin-top:1px\">PI: '+p.pi+' &nbsp;&middot;&nbsp; Ends '+fmtDate(p.end)+'</div></div>";
+          h += "<span style=\"font-size:11px;font-weight:700;color:#854F0B;background:#fff;padding:2px 8px;border-radius:20px\">'+dl+' days left</span>";
+          h += "</div>";
+        });
+        h += "</div>";
+      }
+
+      h += '</div>'; // end what's new
+    } else if (!myP.length) {
+      // No news, no projects
+      h += "<div style=\"background:#f9f9f9;border-radius:12px;padding:20px 24px;margin-bottom:1.25rem;text-align:center\">";
+      h += "<div style=\"font-size:15px;font-weight:600;color:#555;margin-bottom:6px\">You're all caught up!</div>";
+      h += "<div style=\"font-size:13px;color:#aaa\">No new notifications or updates at this time.</div>";
+      h += "</div>";
     }
-    h+='</div>';
-    if(alerts)h+='<div class="card">'+alerts+'</div>';
-    h+='<div class="card"><div class="section-hdr"><span class="card-title" style="margin:0">'+(isStaff?'My projects':'All projects')+' ('+myP.length+')</span></div>';
-    if(!myP.length){h+='<div class="empty">No projects yet.</div>';}
-    else{
-      h+='<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI / Dept</th><th>Type</th><th>Team</th><th>Status</th></tr></thead><tbody>';
-      myP.slice(0,8).forEach(function(p){
-        h+='<tr style="cursor:pointer" data-detail="'+p.id+'">';
-        h+='<td style="font-weight:600">'+p.project+'</td>';
-        h+='<td style="font-size:12px;color:#666">'+p.pi+'</td>';
-        h+='<td><span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span></td>';
-        h+='<td>'+teamPills(p)+'</td>';
-        h+='<td><span class="'+projStatusBadge(p.projectStatus)+'">'+p.projectStatus+'</span></td>';
-        h+='</tr>';
+
+    // ── My projects summary (compact) ────────────────────────────────────
+    if (myP.length) {
+      h += "<div class=\"card\">";
+      h += "<div class=\"section-hdr\" style=\"margin-bottom:1rem\">";
+      h += "<span class=\"card-title\" style=\"margin:0\">My projects ('+myP.length+')</span>";
+      h += "<button class=\"btn btn-sm\" id=\"viewAllMyProjects\">View all &rarr;</button>";
+      h += "</div>";
+      h += "<div style=\"overflow-x:auto\"><table><thead><tr>";
+      h += "<th>Project</th><th>PI</th><th>Type</th><th>My effort</th><th>'+curQ()+' hrs</th><th>Status</th>";
+      h += "</tr></thead><tbody>";
+      myP.slice(0,6).forEach(function(p){
+        var me = (p.team||[]).filter(function(m){return m.name===session.name;})[0];
+        var myQHrs = hoursData.filter(function(h){return h.projectId===p.id&&h.staffName===session.name&&h.quarter===curQ()&&h.year===curYr();}).reduce(function(a,h){return a+h.hours;},0);
+        h += "<tr style=\"cursor:pointer\" data-detail=\"'+p.id+'\">";
+        h += "<td style=\"font-weight:600;font-size:12px;max-width:200px\"><div style=\"white-space:nowrap;overflow:hidden;text-overflow:ellipsis\" title=\"'+p.project+'\">'+p.project+'</div></td>";
+        h += "<td style=\"font-size:12px;color:#666\">'+p.pi+'</td>";
+        h += "<td><span class=\"'+typeBadge(p.type)+'\">'+typeLabel(p.type)+'</span></td>";
+        h += "<td style=\"font-size:12px\">'+(me&&me.pct?'<span style=\"font-weight:700;color:#185FA5\">'+me.pct+'%</span>':'<span style=\"color:#aaa\">&mdash;</span>')+'</td>";
+        h += "<td style=\"font-size:12px;font-weight:600;color:'+(myQHrs>0?'#3B6D11':'#aaa')+'\">'+(myQHrs>0?fmtHrs(myQHrs)+' hrs':'&mdash;')+'</td>";
+        h += "<td><span class=\"'+projStatusBadge(p.projectStatus)+'\">'+p.projectStatus+'</span></td>";
+        h += "</tr>";
       });
-      h+='</tbody></table></div>';
+      if (myP.length > 6) {
+        h += "<tr><td colspan=\"6\" style=\"text-align:center;padding:10px;font-size:12px;color:#888\">+ '+(myP.length-6)+' more &mdash; <a href=\"#\" id=\"viewAllMyProjects2\" style=\"color:#185FA5\">View all my projects</a></td></tr>";
+      }
+      h += "</tbody></table></div></div>";
     }
-    h+='</div>';
-    sh('pageContainer',h);
-    document.querySelectorAll('[data-detail]').forEach(function(row){row.addEventListener('click',function(){showDetail(this.getAttribute('data-detail'));});});
+
+    sh('pageContainer', h);
+
+    // Attach handlers
+    document.querySelectorAll('[data-detail]').forEach(function(row){
+      row.addEventListener('click', function(){showDetail(this.getAttribute('data-detail'));});
+    });
+    document.querySelectorAll('[data-goto-project]').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var nid = this.getAttribute('data-notif-id');
+        if (nid) markNotificationRead(nid);
+        showDetail(this.getAttribute('data-goto-project'));
+      });
+    });
+    var marb=el('markAllReadBtn');if(marb)marb.addEventListener('click',markAllNotificationsRead);
+    var vamp=el('viewAllMyProjects');if(vamp)vamp.addEventListener('click',function(e){e.preventDefault();renderPage('myprojects');});
+    var vamp2=el('viewAllMyProjects2');if(vamp2)vamp2.addEventListener('click',function(e){e.preventDefault();renderPage('myprojects');});
     var ga=el('gotoApprovals');if(ga)ga.addEventListener('click',function(e){e.preventDefault();renderPage('approvals');});
-  var gf=el('gotoFunding');if(gf)gf.addEventListener('click',function(e){e.preventDefault();renderPage('stafffunding');});
-  var marb=el('markAllReadBtn');if(marb)marb.addEventListener('click',markAllNotificationsRead);
+    var gf=el('gotoFunding');if(gf)gf.addEventListener('click',function(e){e.preventDefault();renderPage('stafffunding');});
     return;
   }
+
 
   // ── ADMIN DASHBOARD ─────────────────────────────────────────────────────
   var totalProjects = projects.length;
@@ -4325,253 +4478,186 @@ function requestNewSkill(category){
 function buildStaffSkills() {
   var tax = getAllSkills();
   var allSkillsList = [];
-  Object.keys(tax).forEach(function(k){ (tax[k]||[]).forEach(function(v){ allSkillsList.push(v); }); });
-
+  Object.keys(tax).forEach(function(k){ if(Array.isArray(tax[k]))tax[k].forEach(function(v){allSkillsList.push(v);}); });
   var pendingReqs = skillRequests.filter(function(r){ return r.status === 'pending'; });
   var canEdit = ['admin','director','assocdir','staffmgr','staff','faculty'].indexOf(session.role) > -1;
-
-  // Build reverse index: skill -> [{name, level}]
+  var canApprv = canApprove();
   var skillIndex = {};
-  allSkillsList.forEach(function(skill){ skillIndex[skill] = []; });
-  STAFF.concat(FACULTY).concat(['David Elashoff']).forEach(function(name) {
+  STAFF.forEach(function(name) {
     var prof = getProfile(name);
     (prof.skills||[]).forEach(function(sk) {
       if (!skillIndex[sk.name]) skillIndex[sk.name] = [];
-      skillIndex[sk.name].push({name: name, level: sk.level||'Proficient'});
+      skillIndex[sk.name].push({name:name, level:sk.level||'Proficient'});
     });
   });
-
-  // Category colors
-  var catColors = {
-    'Methods':       {color:'#185FA5', bg:'#E6F1FB', border:'#b5d4f4'},
-    'Software':      {color:'#3B6D11', bg:'#EAF3DE', border:'#a8d470'},
-    'Domain':        {color:'#854F0B', bg:'#FAEEDA', border:'#f5c97a'},
-    'Certifications':{color:'#3C3489', bg:'#EEEDFE', border:'#afa9ec'}
-  };
-  var levelColors = {'Expert':'#3B6D11','Proficient':'#185FA5','Beginner':'#854F0B'};
-  var levelBgs    = {'Expert':'#EAF3DE','Proficient':'#E6F1FB','Beginner':'#FAEEDA'};
-
   var h = '<div class="card">';
-
-  // Header
   h += '<div class="section-hdr" style="margin-bottom:1rem">';
-  h += '<span class="card-title" style="margin:0">Skills &amp; competency finder</span>';
+  h += '<span class="card-title" style="margin:0">Staff skills &amp; competencies</span>';
   h += '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">';
-  if (canApprove() && pendingReqs.length) {
-    h += '<span style="font-size:12px;font-weight:700;color:#854F0B;background:#FAEEDA;padding:3px 10px;border-radius:20px">'+pendingReqs.length+' skill request'+(pendingReqs.length>1?'s':'')+' pending</span>';
-  }
+  if (canApprv && pendingReqs.length) h += '<span class="badge badge-appr-pending">'+pendingReqs.length+' pending</span>';
+  h += '<select id="ssViewMode" style="font-size:12px;padding:5px 8px;border:1px solid #ccc;border-radius:6px"><option value="skills">By skill</option><option value="staff">By staff member</option></select>';
+  h += '<input id="ssSearch" type="text" placeholder="Search skills or staff..." style="font-size:12px;padding:5px 10px;border:1px solid #ccc;border-radius:6px;width:200px">';
   if (canEdit) h += '<button class="btn btn-sm btn-primary" id="addMySkillBtn">+ Add my skills</button>';
   h += '</div></div>';
-
-  // Search bar + filter
-  h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1.25rem">';
-  h += '<input id="ssSearch" type="text" placeholder="Search by skill or staff name..." style="flex:1;min-width:200px;font-size:13px;padding:8px 12px;border:1.5px solid #e0e0dc;border-radius:8px">';
-  h += '<select id="ssCatFilter" style="font-size:13px;padding:8px 10px;border:1.5px solid #e0e0dc;border-radius:8px"><option value="">All categories</option>';
-  Object.keys(tax).forEach(function(c){ h += '<option>'+c+'</option>'; });
-  h += '</select>';
-  h += '<select id="ssLevelFilter" style="font-size:13px;padding:8px 10px;border:1.5px solid #e0e0dc;border-radius:8px"><option value="">All levels</option>';
-  PROF_LEVELS.forEach(function(l){ h += '<option>'+l+'</option>'; });
-  h += '</select>';
-  h += '</div>';
-
-  // Pending approvals block
-  if (canApprove() && pendingReqs.length) {
-    h += '<div style="border:1px solid #EF9F27;border-left:4px solid #EF9F27;border-radius:8px;padding:12px 16px;margin-bottom:1.5rem;background:#FFFDF7">';
-    h += '<div style="font-size:12px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px">Pending skill requests</div>';
-    pendingReqs.forEach(function(r){
-      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f0e8;flex-wrap:wrap;gap:6px">';
-      h += '<div><span style="font-weight:600;font-size:13px">'+r.skillName+'</span><span style="font-size:12px;color:#888;margin:0 6px">&mdash; '+r.category+'</span><span style="font-size:12px;color:#666">by '+r.requestedBy+'</span></div>';
-      h += '<div style="display:flex;gap:6px">';
-      h += '<button class="btn btn-sm btn-approve" data-approve-skill="'+r.id+'">Approve</button>';
-      h += '<button class="btn btn-sm btn-reject" data-reject-skill="'+r.id+'">Reject</button>';
-      h += '</div></div>';
+  if (canApprv && pendingReqs.length) {
+    h += '<div style="border:1px solid #e5e5e5;border-left:4px solid #EF9F27;border-radius:8px;padding:12px 16px;margin-bottom:1.5rem;background:#FFFDF7">';
+    h += '<div style="font-size:12px;font-weight:700;color:#854F0B;margin-bottom:8px">Pending skill additions ('+pendingReqs.length+')</div>';
+    pendingReqs.forEach(function(r) {
+      h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #f5f5f5;flex-wrap:wrap;gap:6px">';
+      h += '<div><strong style="font-size:13px">'+r.skillName+'</strong><span style="font-size:12px;color:#888;margin-left:6px">&mdash; '+r.category+'</span><span style="font-size:12px;color:#666;margin-left:6px">by '+r.requestedBy+'</span></div>';
+      h += '<div style="display:flex;gap:6px"><button class="btn btn-sm btn-approve" data-approve-skill="'+r.id+'">Approve</button><button class="btn btn-sm btn-reject" data-reject-skill="'+r.id+'">Reject</button></div></div>';
     });
     h += '</div>';
   }
-
-  // Main skills grid — organized by category then skill
-  h += '<div id="skillsGrid">' + buildSkillsGrid(tax, skillIndex, catColors, levelColors, levelBgs, '', '', '') + '</div>';
-  h += '</div>';
-
+  h += '<div id="skillsContent">' + buildSkillsByCategory(tax, skillIndex, '') + '</div></div>';
   sh('pageContainer', h);
-
-  // Attach search/filter
-  ['ssSearch','ssCatFilter','ssLevelFilter'].forEach(function(id) {
-    var e = el(id);
-    if (e) e.addEventListener('input', filterSkillsGrid);
-    if (e) e.addEventListener('change', filterSkillsGrid);
-  });
-
-  function filterSkillsGrid() {
-    var search = (gv('ssSearch')||'').toLowerCase().trim();
-    var cat    = gv('ssCatFilter')||'';
-    var level  = gv('ssLevelFilter')||'';
-    sh('skillsGrid', buildSkillsGrid(tax, skillIndex, catColors, levelColors, levelBgs, search, cat, level));
+  var searchEl = el('ssSearch');
+  if (searchEl) searchEl.addEventListener('input', function() {
+    var q = this.value.trim().toLowerCase();
+    var mode = el('ssViewMode') ? el('ssViewMode').value : 'skills';
+    sh('skillsContent', mode==='staff' ? buildSkillsByStaff(tax, q) : buildSkillsByCategory(tax, skillIndex, q));
     attachSkillHandlers();
-  }
-
-  // Add my skills
-  var amb = el('addMySkillBtn');
-  if (amb) amb.addEventListener('click', function(){ openAddSkillModal(); });
-
+  });
+  var modeEl = el('ssViewMode');
+  if (modeEl) modeEl.addEventListener('change', function() {
+    var q = el('ssSearch') ? el('ssSearch').value.trim().toLowerCase() : '';
+    sh('skillsContent', this.value==='staff' ? buildSkillsByStaff(tax, q) : buildSkillsByCategory(tax, skillIndex, q));
+    attachSkillHandlers();
+  });
+  var addBtn = el('addMySkillBtn');
+  if (addBtn) addBtn.addEventListener('click', function(){ openAddSkillModal(tax); });
   attachSkillHandlers();
 }
 
-function buildSkillsGrid(tax, skillIndex, catColors, levelColors, levelBgs, search, catFilter, levelFilter) {
+function buildSkillsByCategory(tax, skillIndex, query) {
+  var catColors = {
+    'Methods':  {col:'#185FA5',bg:'#E6F1FB',border:'#b5d4f4'},
+    'Software': {col:'#3B6D11',bg:'#EAF3DE',border:'#a8d470'},
+    'Domain':   {col:'#854F0B',bg:'#FAEEDA',border:'#f5c97a'},
+    'Certifications': {col:'#3C3489',bg:'#EEEDFE',border:'#afa9ec'}
+  };
+  var levelColors = {Expert:'#3B6D11',Proficient:'#185FA5',Beginner:'#854F0B'};
+  var levelBgs    = {Expert:'#EAF3DE',Proficient:'#E6F1FB',Beginner:'#FAEEDA'};
   var h = '';
-  var totalMatches = 0;
-
   Object.keys(tax).forEach(function(cat) {
-    if (catFilter && cat !== catFilter) return;
-    var cc = catColors[cat] || {color:'#185FA5', bg:'#E6F1FB', border:'#b5d4f4'};
-
-    // Filter skills in this category
-    var catSkills = (tax[cat]||[]).filter(function(skill) {
-      if (search) {
-        // Match skill name or any staff name with this skill
-        var skillMatch = skill.toLowerCase().indexOf(search) > -1;
-        var staffMatch = (skillIndex[skill]||[]).some(function(m){ return m.name.toLowerCase().indexOf(search) > -1; });
-        if (!skillMatch && !staffMatch) return false;
-      }
-      if (levelFilter) {
-        var hasLevel = (skillIndex[skill]||[]).some(function(m){ return m.level === levelFilter; });
-        if (!hasLevel) return false;
-      }
-      return true;
+    var skills = tax[cat] || [];
+    var cc = catColors[cat] || {col:'#5F5E5A',bg:'#F1EFE8',border:'#d3d1c7'};
+    var filteredSkills = skills.filter(function(skill) {
+      if (!query) return true;
+      if (skill.toLowerCase().indexOf(query) > -1) return true;
+      return (skillIndex[skill]||[]).some(function(m){ return m.name.toLowerCase().indexOf(query) > -1; });
     });
-
-    if (!catSkills.length) return;
-    totalMatches += catSkills.length;
-
-    h += '<div style="margin-bottom:1.5rem">';
-    // Category header
-    h += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:'+cc.bg+';border-radius:8px;border-left:4px solid '+cc.color+'">';
-    h += '<span style="font-size:12px;font-weight:800;color:'+cc.color+';text-transform:uppercase;letter-spacing:.08em">'+cat+'</span>';
-    h += '<span style="font-size:11px;color:'+cc.color+';opacity:.7">'+catSkills.length+' skill'+(catSkills.length!==1?'s':'')+'</span>';
+    if (query && !filteredSkills.length) return;
+    var totalHolders = filteredSkills.reduce(function(a,sk){ return a+(skillIndex[sk]||[]).length; },0);
+    h += '<div style="margin-bottom:1.75rem">';
+    h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;padding:8px 12px;background:'+cc.bg+';border-radius:8px;border-left:4px solid '+cc.col+'">';
+    h += '<span style="font-size:13px;font-weight:700;color:'+cc.col+'">'+cat+'</span>';
+    h += '<span style="font-size:11px;color:'+cc.col+';opacity:.7">'+filteredSkills.length+' skill'+(filteredSkills.length!==1?'s':'')+' &middot; '+totalHolders+' assignment'+(totalHolders!==1?'s':'')+'</span>';
     h += '</div>';
-
-    // Skills in this category
-    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px">';
-    catSkills.forEach(function(skill) {
-      var staffWithSkill = (skillIndex[skill]||[]);
-      // Apply level filter to staff list
-      if (levelFilter) staffWithSkill = staffWithSkill.filter(function(m){ return m.level === levelFilter; });
-
-      // Sort: Expert first, then Proficient, then Beginner
-      staffWithSkill = staffWithSkill.slice().sort(function(a,b){
-        var order = {Expert:0, Proficient:1, Beginner:2};
-        return (order[a.level]||1) - (order[b.level]||1);
+    h += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px">';
+    filteredSkills.forEach(function(skill) {
+      var holders = (skillIndex[skill]||[]).sort(function(a,b){
+        var o={Expert:0,Proficient:1,Beginner:2};
+        return (o[a.level]||1)-(o[b.level]||1);
       });
-
+      var expertCount   = holders.filter(function(m){ return m.level==='Expert'; }).length;
+      var profCount     = holders.filter(function(m){ return m.level==='Proficient'; }).length;
+      var beginCount    = holders.filter(function(m){ return m.level==='Beginner'; }).length;
       h += '<div style="border:1px solid '+cc.border+';border-radius:10px;background:#fff;overflow:hidden">';
-      // Skill header
-      h += '<div style="padding:10px 14px;background:'+cc.bg+';display:flex;justify-content:space-between;align-items:center">';
-      h += '<span style="font-size:13px;font-weight:700;color:'+cc.color+'">'+skill+'</span>';
-      h += '<span style="font-size:11px;font-weight:600;color:'+cc.color+';opacity:.75;background:#fff;padding:2px 8px;border-radius:20px">'+staffWithSkill.length+' staff</span>';
-      h += '</div>';
-      // Staff list
-      if (!staffWithSkill.length) {
-        h += '<div style="padding:10px 14px;font-size:12px;color:#bbb;font-style:italic">No staff listed</div>';
-      } else {
-        h += '<div style="padding:8px 14px">';
-        staffWithSkill.forEach(function(m) {
-          var lc = levelColors[m.level]||'#185FA5';
-          var lb = levelBgs[m.level]||'#E6F1FB';
-          h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f5f5f5">';
+      h += '<div style="padding:10px 14px;background:'+cc.bg+';border-bottom:1px solid '+cc.border+';display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">';
+      h += '<span style="font-size:13px;font-weight:700;color:'+cc.col+'">'+skill+'</span>';
+      h += '<div style="display:flex;gap:4px">';
+      if (expertCount) h += '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#EAF3DE;color:#3B6D11;font-weight:700">'+expertCount+' Expert</span>';
+      if (profCount)   h += '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#E6F1FB;color:#185FA5;font-weight:700">'+profCount+' Proficient</span>';
+      if (beginCount)  h += '<span style="font-size:10px;padding:2px 7px;border-radius:20px;background:#FAEEDA;color:#854F0B;font-weight:700">'+beginCount+' Beginner</span>';
+      if (!holders.length) h += '<span style="font-size:10px;color:#bbb;font-style:italic">None yet</span>';
+      h += '</div></div>';
+      if (holders.length) {
+        h += '<div style="padding:10px 14px">';
+        holders.forEach(function(m) {
+          var lcol = levelColors[m.level]||'#185FA5';
+          var lbg  = levelBgs[m.level]||'#E6F1FB';
+          h += '<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f9f9f9">';
           h += '<div style="display:flex;align-items:center;gap:7px">';
-          h += '<div style="width:24px;height:24px;border-radius:50%;background:#0a1628;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">'+initials(m.name)+'</div>';
-          h += '<span style="font-size:12px;font-weight:500;color:#333">'+m.name+'</span>';
+          h += '<div style="width:26px;height:26px;border-radius:50%;background:#0a1628;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;color:#fff;flex-shrink:0">'+initials(m.name)+'</div>';
+          h += '<span style="font-size:12px;font-weight:600">'+m.name+'</span>';
+          h += userBadge(m.name);
           h += '</div>';
-          h += '<span style="font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;background:'+lb+';color:'+lc+'">'+m.level+'</span>';
+          h += '<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:'+lbg+';color:'+lcol+';font-weight:700">'+m.level+'</span>';
           h += '</div>';
         });
         h += '</div>';
+      } else {
+        h += '<div style="padding:10px 14px;font-size:12px;color:#bbb;font-style:italic">No staff with this skill yet</div>';
       }
       h += '</div>';
     });
     h += '</div></div>';
   });
+  return h || '<div class="empty">No skills match your search.</div>';
+}
 
-  if (!totalMatches) {
-    return '<div class="empty" style="padding:2rem">No skills match your search.</div>';
-  }
-  return h;
+function buildSkillsByStaff(tax, query) {
+  var levelColors = {Expert:'#3B6D11',Proficient:'#185FA5',Beginner:'#854F0B'};
+  var levelBgs    = {Expert:'#EAF3DE',Proficient:'#E6F1FB',Beginner:'#FAEEDA'};
+  var catColors   = {'Methods':'#185FA5','Software':'#3B6D11','Domain':'#854F0B','Certifications':'#3C3489'};
+  var staffToShow = STAFF.filter(function(name) {
+    if (!query) return true;
+    if (name.toLowerCase().indexOf(query) > -1) return true;
+    return (getProfile(name).skills||[]).some(function(sk){ return sk.name.toLowerCase().indexOf(query) > -1; });
+  });
+  var h = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px">';
+  staffToShow.forEach(function(name) {
+    var prof = getProfile(name);
+    var skills = prof.skills || [];
+    var byCategory = {};
+    skills.forEach(function(sk) {
+      var cat = 'Other';
+      Object.keys(tax).forEach(function(c){ if((tax[c]||[]).indexOf(sk.name)>-1) cat=c; });
+      if (!byCategory[cat]) byCategory[cat] = [];
+      byCategory[cat].push(sk);
+    });
+    var expertCount = skills.filter(function(sk){ return sk.level==='Expert'; }).length;
+    h += '<div style="border:1px solid #e8e8e5;border-radius:10px;background:#fff;overflow:hidden">';
+    h += '<div style="padding:10px 14px;background:#0a1628;display:flex;align-items:center;gap:10px">';
+    h += '<div style="width:32px;height:32px;border-radius:50%;background:#1a6fcf;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(name)+'</div>';
+    h += '<div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:700;color:#fff">'+name+'</div>';
+    h += '<div style="font-size:10px;color:rgba(255,255,255,.5)">'+skills.length+' skill'+(skills.length!==1?'s':'')+' &middot; '+expertCount+' Expert</div></div>';
+    h += userBadge(name);
+    h += '</div>';
+    if (!skills.length) {
+      h += '<div style="padding:12px 14px;font-size:12px;color:#bbb;font-style:italic">No skills added yet</div>';
+    } else {
+      h += '<div style="padding:10px 14px">';
+      Object.keys(byCategory).sort().forEach(function(cat) {
+        var ccol = catColors[cat]||'#5F5E5A';
+        h += '<div style="font-size:10px;font-weight:700;color:'+ccol+';text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;margin-top:8px">'+cat+'</div>';
+        h += '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:2px">';
+        byCategory[cat].sort(function(a,b){ var o={Expert:0,Proficient:1,Beginner:2};return (o[a.level]||1)-(o[b.level]||1); }).forEach(function(sk) {
+          var lcol=levelColors[sk.level]||'#185FA5', lbg=levelBgs[sk.level]||'#E6F1FB';
+          h += '<span style="font-size:11px;padding:3px 8px;border-radius:20px;background:'+lbg+';color:'+lcol+';font-weight:600" title="'+sk.level+'">'+sk.name+'</span>';
+        });
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</div>';
+  });
+  h += '</div>';
+  return staffToShow.length ? h : '<div class="empty">No staff match your search.</div>';
 }
 
 function attachSkillHandlers() {
-  document.querySelectorAll('[data-approve-skill]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var r = skillRequests.filter(function(x){ return x.id===this.getAttribute('data-approve-skill'); }.bind(this))[0];
-      if (!r) return;
-      r.status = 'approved';
-      saveRecord('update', r, 'skillRequests');
-      buildStaffSkills();
-    });
+  document.querySelectorAll('[data-approve-skill]').forEach(function(btn) {
+    btn.addEventListener('click', function(){ approveSkillRequest(this.getAttribute('data-approve-skill')); });
   });
-  document.querySelectorAll('[data-reject-skill]').forEach(function(btn){
-    btn.addEventListener('click', function(){
-      var r = skillRequests.filter(function(x){ return x.id===this.getAttribute('data-reject-skill'); }.bind(this))[0];
-      if (!r) return;
-      r.status = 'rejected';
-      saveRecord('update', r, 'skillRequests');
-      buildStaffSkills();
-    });
+  document.querySelectorAll('[data-reject-skill]').forEach(function(btn) {
+    btn.addEventListener('click', function(){ rejectSkillRequest(this.getAttribute('data-reject-skill')); });
   });
 }
-
-function openAddSkillModal() {
-  var tax = getAllSkills();
-  var prof = getProfile(session.name);
-  var mySkills = (prof.skills||[]).map(function(s){ return s.name; });
-
-  var h = '<div class="modal-title">Add / update my skills</div>';
-  h += '<div style="font-size:13px;color:#888;margin-bottom:1rem">'+session.name+'</div>';
-  h += '<div class="form-grid">';
-  h += '<div class="form-group"><label>Category</label><select id="addSkillCat">';
-  Object.keys(tax).forEach(function(c){ h += '<option>'+c+'</option>'; });
-  h += '</select></div>';
-  h += '<div class="form-group"><label>Skill</label><select id="addSkillName">';
-  (tax[Object.keys(tax)[0]]||[]).forEach(function(sk){ h += '<option>'+sk+'</option>'; });
-  h += '</select></div>';
-  h += '<div class="form-group"><label>Level</label><select id="addSkillLevel">';
-  PROF_LEVELS.forEach(function(l){ h += '<option>'+l+'</option>'; });
-  h += '</select></div>';
-  h += '<div class="form-group"><label>Other skill (if not listed)</label><input id="addSkillOther" placeholder="Describe..."></div>';
-  h += '</div>';
-  h += '<div class="actions"><button class="btn" id="addSkillCancelBtn">Cancel</button><button class="btn btn-primary" id="addSkillSaveBtn">Save skill</button></div>';
-  openModal(h);
-
-  var catEl = el('addSkillCat');
-  var nameEl = el('addSkillName');
-  if (catEl && nameEl) {
-    catEl.addEventListener('change', function(){
-      var opts = (tax[this.value]||[]).map(function(sk){ return '<option>'+sk+'</option>'; }).join('');
-      nameEl.innerHTML = opts;
-    });
-  }
-  el('addSkillCancelBtn').addEventListener('click', closeModal);
-  el('addSkillSaveBtn').addEventListener('click', function(){
-    var cat = gv('addSkillCat'), name = gv('addSkillName'), level = gv('addSkillLevel'), other = gv('addSkillOther').trim();
-    if (other) {
-      // Submit as request
-      var req = {id:String(Date.now()),requestedBy:session.name,skillName:other,category:cat,level:level,status:'pending',requestedDate:new Date().toISOString().split('T')[0]};
-      skillRequests.push(req);
-      saveRecord('add', req, 'skillRequests');
-    } else {
-      var p = getProfile(session.name);
-      var existing = (p.skills||[]).filter(function(s){ return s.name !== name; });
-      existing.push({name:name, level:level});
-      p.skills = existing;
-      saveRecord('update', {staffName:session.name, skills:JSON.stringify(p.skills), updatedDate:new Date().toISOString().split('T')[0]}, 'profiles');
-    }
-    closeModal();
-    buildStaffSkills();
-  });
-}
-
 
 function openAddSkillModal(tax) {
-  var h = '<div class="modal-title">Add skills &mdash; ' + session.name + '</div>';
+  var h = '<div class="modal-title">Add skills &mdash; '+session.name+'</div>';
   h += '<div class="form-grid">';
   h += '<div class="form-group full"><label>Category</label><select id="newSkillCat">';
   Object.keys(tax).forEach(function(c){ h += '<option>'+c+'</option>'; });
@@ -4580,25 +4666,24 @@ function openAddSkillModal(tax) {
   h += '<div class="form-group full"><label>Proficiency level</label><select id="newSkillLevel">';
   PROF_LEVELS.forEach(function(l){ h += '<option>'+l+'</option>'; });
   h += '</select></div>';
-  h += '<div class="form-group full"><label>Other (custom skill)</label><input id="newSkillOther" placeholder="Custom skill not in list above..."></div>';
+  h += '<div class="form-group full"><label>Custom skill (if not listed)</label><input id="newSkillOther" placeholder="Enter a skill not in the list above..."></div>';
   h += '</div>';
   h += '<div class="err-msg" id="newSkillErr">Please select or enter a skill.</div>';
-  h += '<div class="actions"><button class="btn" id="newSkillCancel">Cancel</button><button class="btn btn-primary" id="newSkillSave">Save skill</button></div>';
+  h += '<div class="actions"><button class="btn" id="newSkillCancel">Cancel</button><button class="btn btn-primary" id="newSkillSave">Save</button></div>';
   openModal(h);
   el('newSkillCat').addEventListener('change', function() {
-    var cat = this.value, skills = tax[cat]||[];
-    var myNames = (getProfile(session.name).skills||[]).map(function(sk){return sk.name;});
-    el('newSkillName').innerHTML = '<option value="">Select skill...</option>'+skills.filter(function(sk){return myNames.indexOf(sk)===-1;}).map(function(sk){return '<option>'+sk+'</option>';}).join('');
+    var cat=this.value, skList=tax[cat]||[];
+    var myNames=(getProfile(session.name).skills||[]).map(function(sk){return sk.name;});
+    el('newSkillName').innerHTML='<option value="">Select skill...</option>'+skList.filter(function(sk){return myNames.indexOf(sk)===-1;}).map(function(sk){return '<option>'+sk+'</option>';}).join('');
   });
   el('newSkillCancel').addEventListener('click', closeModal);
   el('newSkillSave').addEventListener('click', function() {
-    var cat=el('newSkillCat').value, skillName=el('newSkillName').value||el('newSkillOther').value.trim(), level=el('newSkillLevel').value;
+    var cat=el('newSkillCat').value,skillName=el('newSkillName').value||el('newSkillOther').value.trim(),level=el('newSkillLevel').value;
     if (!skillName){el('newSkillErr').style.display='block';return;}
     el('newSkillErr').style.display='none';
-    var listed=(tax[cat]||[]).indexOf(skillName)>-1;
-    if (!listed&&el('newSkillOther').value.trim()){
+    if (!(tax[cat]||[]).includes(skillName)&&el('newSkillOther').value.trim()){
       var req={id:String(Date.now()),requestedBy:session.name,skillName:skillName,category:cat,level:level,status:'pending',requestedDate:new Date().toISOString().split('T')[0]};
-      skillRequests.push(req);saveRecord('add',req,'skillRequests');closeModal();alert('Skill request submitted for admin approval.');return;
+      skillRequests.push(req);saveRecord('add',req,'skillRequests');closeModal();alert('Skill submitted for admin approval.');return;
     }
     var prof=getProfile(session.name),existing=(prof.skills||[]).filter(function(sk){return sk.name!==skillName;});
     existing.push({name:skillName,level:level,category:cat});prof.skills=existing;
@@ -4606,6 +4691,7 @@ function openAddSkillModal(tax) {
     closeModal();buildStaffSkills();
   });
 }
+
 
 function approveSkillRequest(id){
   var req=skillRequests.filter(function(r){return r.id===id;})[0]; if(!req)return;
