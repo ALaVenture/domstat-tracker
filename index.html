@@ -4009,14 +4009,6 @@ function attachAvailHandlers(staffData) {
 }
 
 
-function attachAvailHandlers(staffData) {
-  document.querySelectorAll('[data-avail-detail]').forEach(function(btn) {
-    btn.addEventListener('click', function() {
-      openAvailDetail(this.getAttribute('data-avail-detail'), staffData);
-    });
-  });
-}
-
 function openAvailDetail(name, staffData) {
   var d = staffData.filter(function(x) { return x.name === name; })[0];
   if (!d) return;
