@@ -193,7 +193,8 @@ const PROF_LEVELS=["Beginner", "Proficient", "Expert"];
 const SKILLS={"Methods": ["Regression", "Survival Analysis", "Mixed Models / LME", "Bayesian Analysis", "Power & Sample Size", "Meta-Analysis", "Machine Learning", "Causal Inference", "Longitudinal Data Analysis", "Time Series", "Multivariate Analysis", "Factor Analysis / PCA", "Structural Equation Modeling", "Propensity Score Methods"], "Software": ["R", "SAS", "Stata", "Python", "SPSS", "REDCap", "SQL", "MATLAB"], "Domain": ["Clinical Trials", "EHR / Claims Data", "Survey Design", "Genomics / Omics", "Epidemiology", "Health Services Research", "Pediatrics", "Oncology", "Psychiatry", "Cardiology", "Neurology", "Imaging Data"], "Certifications": ["WOC (VA Authorization)"]};
 const PASSCODES={staff:"staff123",staffmgr:"StaffManager123",faculty:"Faculty123",fund:"fund456",admin:"admin789"};
 const ROLE_PAGES={
-  public:["pidashboard","intake","mystatus"],
+  public:["intake","mystatus"],
+  pi:["pidashboard","mystatus"],
   staff:["dashboard","myprojects","editproject","loghours","myhours","myprofile","intake"],
   staffmgr:["dashboard","allprojects","editproject","loghours","myhours","myprofile","staffskills","intake"],
   faculty:["dashboard","editproject","facultyreporting","myprofile","staffskills","intake"],
@@ -807,9 +808,9 @@ function showLogin() {
   h += '<button class="ltab" data-tab="admin">Admin / FM</button>';
   h += '</div>';
   h += '<div id="lp-public">';
-  h += '<button class="lbig-btn lbig-btn-primary" data-action="submit-public"><div class="lbtn-icon">\uD83D\uDCCB</div><div class="lbtn-body"><div class="lbtn-title">Submit a project</div><div class="lbtn-sub">Ready to engage DOMStat \u2014 have your project details &amp; FAU</div></div><div class="lbtn-arrow">\u203A</div></button>';
-  h += '<button class="lbig-btn lbig-btn-outline" data-action="view-public"><div class="lbtn-icon">\uD83D\uDCCA</div><div class="lbtn-body"><div class="lbtn-title">My submissions</div><div class="lbtn-sub">View your submitted projects with email + PIN</div></div><div class="lbtn-arrow">\u203A</div></button>';
-  h += '<button class="lbig-btn lbig-btn-ghost" data-action="consult"><div class="lbtn-icon">\uD83D\uDD2C</div><div class="lbtn-body"><div class="lbtn-title">Request a consultation</div><div class="lbtn-sub">Quick first contact \u2014 no project details needed</div></div><div class="lbtn-arrow">\u203A</div></button>';
+  h += '<button class="lbig-btn lbig-btn-primary" data-action="consult"><div class="lbtn-icon">\uD83D\uDD2C</div><div class="lbtn-body"><div class="lbtn-title">Request a consultation</div><div class="lbtn-sub">Quick first contact \u2014 no project details needed</div></div><div class="lbtn-arrow">\u203A</div></button>';
+  h += '<button class="lbig-btn lbig-btn-outline" data-action="submit-public"><div class="lbtn-icon">\uD83D\uDCCB</div><div class="lbtn-body"><div class="lbtn-title">Submit a project</div><div class="lbtn-sub">Ready to engage DOMStat \u2014 have your project details &amp; FAU</div></div><div class="lbtn-arrow">\u203A</div></button>';
+  h += '<button class="lbig-btn lbig-btn-ghost" data-action="view-public"><div class="lbtn-icon">\uD83D\uDCCA</div><div class="lbtn-body"><div class="lbtn-title">My submissions</div><div class="lbtn-sub">View your submitted projects with email + PIN</div></div><div class="lbtn-arrow">\u203A</div></button>';
   h += '</div>';h += '<div id="lp-staff" style="display:none">';
   h += '<div class="form-group" style="margin-bottom:12px"><label>Your name</label><select id="ln-staff">' + staffOpts + '</select></div>';
   h += '<div class="form-group" style="margin-bottom:12px"><label>Access level</label><select id="lr-staff"><option value="staff">\uD83D\uDC64 Staff</option><option value="staffmgr">\uD83D\uDCCB Staff Manager</option></select></div>';
@@ -956,7 +957,7 @@ function doPILogin() {
     }
   }
   if (!match) { errEl.style.display = 'block'; return; }
-  session = {role:'public', name:match.pi, piEmail:email};
+  session = {role:'pi', name:match.pi, piEmail:email};
   currentPage = 'pidashboard';
   renderNav();
   renderPage('pidashboard');
@@ -1005,7 +1006,14 @@ function renderNav(){
     {label:"Management", color:"#3C3489",bg:"#EEEDFE",border:"#afa9ec",pages:["approvals","budgets","fund"]},
     {label:"Profile",    color:"#5F5E5A",bg:"#F1EFE8",border:"#d3d1c7",pages:["myprofile"]}
   ];
-  var allowedPages=ROLE_PAGES[session.role]||[];
+  var allowedPages=(ROLE_PAGES[session.role]||[]).slice();
+  if (session.role==='public' && session.piAuthenticated && allowedPages.indexOf('pidashboard')===-1) {
+    allowedPages = ['pidashboard'].concat(allowedPages);
+  }
+  // For PIN-authenticated PIs, add pidashboard to their nav
+  if (session.role==='public' && session.piAuthenticated && allowedPages.indexOf('pidashboard')===-1) {
+    allowedPages = ['pidashboard'].concat(allowedPages);
+  }
   var pendingAppr=approvals.filter(function(a){return a.status==="pending";}).length;
   var pendingSkill=skillRequests.filter(function(r){return r.status==="pending";}).length;
 
@@ -1057,6 +1065,8 @@ function renderNav(){
 
 function renderPage(p) {
   var pages = ROLE_PAGES[session.role] || [];
+  // pidashboard only accessible to public users who have PIN-authenticated
+  if (p === 'pidashboard' && session.role === 'public' && !session.piAuthenticated) p = 'mystatus';
   if (pages.indexOf(p) === -1) p = pages[0];
   currentPage = p;
   renderNav();
@@ -2000,32 +2010,153 @@ function applyAllFilters() {
 
 
 function buildMyStatus() {
-  var h = '<div class="card"><div class="card-title">My submissions</div>';
-  h += '<div style="display:flex;gap:8px;margin-bottom:1rem">';
-  h += '<input id="ssSearch" type="text" placeholder="Your name as submitted..." style="flex:1">';
-  h += '<button class="btn btn-primary" id="ssBtn">Search</button></div>';
-  h += '<div id="ssResults"></div></div>';
+  // If already authenticated as PI, go straight to dashboard
+  if (session.role === 'pi' && session.piEmail) {
+    renderPage('pidashboard');
+    return;
+  }
+  var h = '<div class="card">';
+  h += '<div class="card-title">My submissions</div>';
+  h += '<p style="font-size:13px;color:#666;margin-bottom:1.25rem">Enter the email address and PIN you provided when submitting your project.</p>';
+  h += '<div class="form-grid" style="max-width:480px">';
+  h += '<div class="form-group full"><label>Email address</label><input id="ms_email" type="email" placeholder="Email used on your submission"></div>';
+  h += '<div class="form-group full"><label>4-digit PIN</label><input id="ms_pin" type="password" maxlength="4" placeholder="Your 4-digit PIN" style="letter-spacing:4px"></div>';
+  h += '</div>';
+  h += '<div class="err-msg" id="ms_err">Email or PIN not found. Please check and try again.</div>';
+  h += '<div style="margin-top:1rem"><button class="btn btn-primary" id="ms_loginBtn">View my projects</button></div>';
+  h += '</div>';
   sh('pageContainer', h);
-  el('ssBtn').addEventListener('click', searchMyStatus);
-  el('ssSearch').addEventListener('keydown', function(ev) { if (ev.key === 'Enter') searchMyStatus(); });
-}
-function searchMyStatus() {
-  var name = gv('ssSearch').toLowerCase().trim();
-  if (!name) { sh('ssResults','<div class="empty">Enter your name to search.</div>'); return; }
-  var mine = projects.filter(function(p) { return p.submittedBy && p.submittedBy.toLowerCase().indexOf(name) > -1; });
-  if (!mine.length) { sh('ssResults','<div class="empty">No submissions found.</div>'); return; }
-  var h = '<div style="overflow-x:auto"><table><thead><tr><th>Project</th><th>PI</th><th>Type</th><th>Submitted</th><th>Status</th></tr></thead><tbody>';
-  mine.forEach(function(p) {
-    h += '<tr><td style="font-weight:600">' + p.project + '</td><td style="font-size:12px;color:#666">' + p.pi + '</td>';
-    h += '<td><span class="' + typeBadge(p.type) + '">' + typeLabel(p.type) + '</span></td>';
-    h += '<td style="font-size:12px;color:#666">' + fmtDate(p.submittedDate) + '</td>';
-    h += '<td><span class="badge ' + (p.fundManagerStatus==='processed'?'badge-processed':'badge-pending') + '">' + (p.fundManagerStatus==='processed'?'Processed':'Pending') + '</span></td></tr>';
-  });
-  h += '</tbody></table></div>';
-  sh('ssResults', h);
+  el('ms_loginBtn').addEventListener('click', doMyStatusLogin);
+  el('ms_pin').addEventListener('keydown', function(ev){ if(ev.key==='Enter') doMyStatusLogin(); });
 }
 
-// ── LOG HOURS ──────────────────────────────────────────────────────────────
+function doMyStatusLogin() {
+  var email = (gv('ms_email')||'').trim().toLowerCase();
+  var pin   = (gv('ms_pin')||'').trim();
+  var errEl = el('ms_err');
+  if (!email || !pin) { errEl.style.display='block'; return; }
+  var match = null;
+  for (var i=0; i<projects.length; i++) {
+    var p = projects[i];
+    if (p.piEmail && p.piEmail.toLowerCase()===email && String(p.piPin)===String(pin)) {
+      match = p; break;
+    }
+  }
+  if (!match) { errEl.style.display='block'; return; }
+  errEl.style.display='none';
+  session = {role:'pi', name:match.pi, piEmail:email};
+  renderNav();
+  renderPage('pidashboard');
+}
+
+function searchMyStatus() {
+  doMyStatusLogin();
+}
+
+
+function searchMyStatus() {
+  var name = gv('ssSearch').toLowerCase().trim();
+  if (!name) { sh('ssResults','<div class="empty">Enter your name or PI name to search.</div>'); return; }
+  var mine = projects.filter(function(p) {
+    return (p.submittedBy && p.submittedBy.toLowerCase().indexOf(name) > -1) ||
+           (p.pi && p.pi.toLowerCase().indexOf(name) > -1) ||
+           (p.piEmail && p.piEmail.toLowerCase().indexOf(name) > -1);
+  });
+  if (!mine.length) { sh('ssResults','<div class="empty">No submissions found for "'+gv('ssSearch')+'".</div>'); return; }
+  sh('ssResults', buildMyStatusCards(mine));
+  document.querySelectorAll('[data-detail]').forEach(function(row){
+    row.addEventListener('click',function(){showDetail(this.getAttribute('data-detail'));});
+  });
+}
+
+function buildMyStatusCards(mine) {
+  var h = '';
+  mine.forEach(function(p) {
+    var isAssigned = (p.team||[]).length > 0;
+    var isComplete = p.projectStatus === 'Project Complete';
+    var isPending  = p.projectStatus === 'New Project';
+    var statusCol = isPending ? '#854F0B' : isComplete ? '#5F5E5A' : '#3B6D11';
+    var statusBg  = isPending ? '#FAEEDA' : isComplete ? '#F1EFE8' : '#EAF3DE';
+    var statusLbl = isPending ? 'Awaiting assignment' : isComplete ? 'Complete' : 'Active';
+
+    h += '<div style="border:1px solid #e5e5e5;border-radius:12px;margin-bottom:1.25rem;overflow:hidden;background:#fff">';
+    h += '<div style="padding:14px 18px;background:'+(isPending?'#FFFDF7':isComplete?'#f5f5f5':'#f0f6ff')+';border-bottom:1px solid #f0f0f0">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+    h += '<div>';
+    h += '<div style="font-weight:700;font-size:14px;margin-bottom:4px">'+p.project+'</div>';
+    h += '<div style="font-size:12px;color:#888">PI: '+p.pi+' · Submitted: '+fmtDate(p.submittedDate)+'</div>';
+    h += '</div>';
+    h += '<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center">';
+    h += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+    h += durationTagHtml(p);
+    h += '<span style="font-size:12px;font-weight:700;padding:3px 12px;border-radius:20px;background:'+statusBg+';color:'+statusCol+'">'+statusLbl+'</span>';
+    h += '</div></div></div>';
+    h += '<div style="padding:14px 18px">';
+    if (isPending) {
+      h += '<div style="background:#FAEEDA;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:13px;color:#854F0B">';
+      h += '<strong>Your project has been received</strong> and is awaiting assignment to a DOMStat team member.';
+      h += '</div>';
+    }
+    h += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px;margin-bottom:12px">';
+    h += '<div><span style="color:#888">Start:</span> <strong>'+fmtDate(p.start)+'</strong></div>';
+    h += '<div><span style="color:#888">End:</span> <strong>'+fmtDate(p.end)+'</strong></div>';
+    if (p.grant) h += '<div><span style="color:#888">Grant:</span> '+p.grant+'</div>';
+    if (p.fau)   h += '<div><span style="color:#888">FAU:</span> '+p.fau+'</div>';
+    h += '</div>';
+    if (p.scopeSummary) {
+      h += '<div style="background:#f5f5f5;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px">';
+      h += '<div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Scope of work</div>'+p.scopeSummary+'</div>';
+    }
+    if (p.nextSteps) {
+      h += '<div style="background:#EAF3DE;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#3B6D11">';
+      h += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px">Next steps</div>'+p.nextSteps+'</div>';
+    }
+    if (isAssigned) {
+      var totalEff = (p.team||[]).reduce(function(a,m){return a+(Number(m.pct)||0);},0);
+      h += '<div style="margin-top:4px">';
+      h += '<div style="font-size:11px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Your assigned DOMStat team</div>';
+      (p.team||[]).forEach(function(m) {
+        var prof = getProfile(m.name);
+        var skills = (prof.skills||[]);
+        var experts = skills.filter(function(sk){return sk.level==='Expert';});
+        var profs2  = skills.filter(function(sk){return sk.level==='Proficient';});
+        h += '<div style="border:1px solid #e0eaf8;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#f8fbff">';
+        h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+        h += '<div style="width:34px;height:34px;border-radius:50%;background:#0a1628;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(m.name)+'</div>';
+        h += '<div>';
+        h += '<div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">'+m.name;
+        if (m.lead) h += ' <span class="badge badge-lead">Lead</span>';
+        if (m.pct)  h += ' <span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 7px;border-radius:20px;font-weight:600">'+m.pct+'% effort</span>';
+        h += '</div>';
+        h += '<div style="font-size:11px;color:#888">UCLA DOMStat · Department of Medicine Statistics</div>';
+        h += '</div></div>';
+        if (skills.length) {
+          h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+          experts.forEach(function(sk){ h += '<span style="font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 8px;border-radius:20px;font-weight:700">★ '+sk.name+'</span>'; });
+          profs2.forEach(function(sk){  h += '<span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:20px">'+sk.name+'</span>'; });
+          skills.filter(function(sk){return sk.level==='Beginner';}).forEach(function(sk){
+            h += '<span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:20px">'+sk.name+'</span>';
+          });
+          h += '</div>';
+        } else {
+          h += '<div style="font-size:11px;color:#bbb;font-style:italic">Skills profile pending</div>';
+        }
+        h += '</div>';
+      });
+      if (totalEff > 0) {
+        h += '<div style="background:#0a1628;border-radius:8px;padding:7px 12px;display:flex;justify-content:space-between;align-items:center;margin-top:4px">';
+        h += '<span style="font-size:12px;color:rgba(255,255,255,.6)">Total DOMStat support</span>';
+        h += '<span style="font-size:14px;font-weight:800;color:#FFD100">'+totalEff+'% effort</span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    }
+    h += '</div></div>';
+  });
+  return h;
+}
+
+
 function buildLogHours() {
   var weeks = getFridayWeeks(12);
   var h = '<div class="card"><div class="card-title">Log hours</div><div class="form-grid" style="margin-bottom:1rem">';
