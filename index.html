@@ -807,11 +807,9 @@ function showLogin() {
   h += '<button class="ltab" data-tab="admin">Admin / FM</button>';
   h += '</div>';
   h += '<div id="lp-public">';
-  h += '<button class="lbig-btn lbig-btn-primary" data-action="consult"><div class="lbtn-icon">\uD83D\uDD2C</div><div class="lbtn-body"><div class="lbtn-title">Request a consultation</div><div class="lbtn-sub">Quick first contact \u2014 no project details needed</div></div><div class="lbtn-arrow">\u203A</div></button>';
-  h += '<button class="lbig-btn lbig-btn-outline" data-action="submit-public"><div class="lbtn-icon">\uD83D\uDCCB</div><div class="lbtn-body"><div class="lbtn-title">Set up a new project</div><div class="lbtn-sub">Ready to engage DOMStat \u2014 have your FAU &amp; project details</div></div><div class="lbtn-arrow">\u203A</div></button>';
-  h += '<button class="lbig-btn lbig-btn-ghost" data-action="view-public"><div class="lbtn-icon">\uD83D\uDCCA</div><div class="lbtn-body"><div class="lbtn-title">View my account</div><div class="lbtn-sub">Track submissions with email + PIN</div></div><div class="lbtn-arrow">\u203A</div></button>';
-  h += '</div>';
-  h += '<div id="lp-staff" style="display:none">';
+  h += '<button class="lbig-btn lbig-btn-primary" data-action="submit-public"><div class="lbtn-icon">\uD83D\uDCCB</div><div class="lbtn-body"><div class="lbtn-title">Submit a project</div><div class="lbtn-sub">Ready to engage DOMStat \u2014 have your project details &amp; FAU</div></div><div class="lbtn-arrow">\u203A</div></button>';
+  h += '<button class="lbig-btn lbig-btn-outline" data-action="view-public"><div class="lbtn-icon">\uD83D\uDCCA</div><div class="lbtn-body"><div class="lbtn-title">My submissions</div><div class="lbtn-sub">View your submitted projects with email + PIN</div></div><div class="lbtn-arrow">\u203A</div></button>';
+  h += '</div>';h += '<div id="lp-staff" style="display:none">';
   h += '<div class="form-group" style="margin-bottom:12px"><label>Your name</label><select id="ln-staff">' + staffOpts + '</select></div>';
   h += '<div class="form-group" style="margin-bottom:12px"><label>Access level</label><select id="lr-staff"><option value="staff">\uD83D\uDC64 Staff</option><option value="staffmgr">\uD83D\uDCCB Staff Manager</option></select></div>';
   h += '<div class="form-group" style="margin-bottom:16px"><label>Passcode</label><input type="password" id="lc-staff" placeholder="Enter passcode"></div>';
@@ -1216,7 +1214,7 @@ function showDetail(id) {
   el('detailCloseBtn').addEventListener('click', closeModal);
   var _dab=el('detailAssignBtn');if(_dab)_dab.addEventListener('click',function(){closeModal();openAssignStaffModal(p.id);});
   var editBtn = el('detailEditBtn');
-  if (editBtn) editBtn.addEventListener('click', function() { closeModal(); openEditModal(id); });
+  if (editBtn) editBtn.addEventListener('click', function() { closeModal(); setTimeout(function(){ openEditModal(id); }, 50); });
   var procBtn = el('detailProcessBtn');
   if (procBtn) procBtn.addEventListener('click', function() { markProcessed(id); closeModal(); });
   var invBtn = el('detailInvoiceBtn');
@@ -1468,7 +1466,10 @@ function buildDashboard() {
   var h = '';
 
   // Alerts bar
+  // New project submissions alert
+  var newProjNotifs = notifications.filter(function(n){ return n.staffName==='__admin__'&&n.type==='new_project'&&n.read!=='yes'; });
   var alerts = '';
+  if(newProjNotifs.length) alerts += '<div class="alert alert-warn"><strong>'+newProjNotifs.length+' new project submission'+(newProjNotifs.length>1?'s':'')+' awaiting assignment</strong> &mdash; <a href="#" id="gotoProjects" style="color:inherit;font-weight:600">Review &rarr;</a></div>';
   if(pendingAppr) alerts+='<div class="alert alert-warn"><strong>'+pendingAppr+' approval'+(pendingAppr>1?'s':'')+' pending</strong> &mdash; <a href="#" id="gotoApprovals" style="color:inherit;font-weight:600">Review &rarr;</a></div>';
   if(pendingSkill) alerts+='<div class="alert alert-info"><strong>'+pendingSkill+' skill request'+(pendingSkill>1?'s':'')+' pending</strong> &mdash; <a href="#" id="gotoSkills" style="color:inherit;font-weight:600">Review &rarr;</a></div>';
   if(consultRequests) alerts+='<div class="alert alert-info"><strong>'+consultRequests+' consultation request'+(consultRequests>1?'s':'')+' received</strong> &mdash; <a href="#" id="gotoProjects" style="color:inherit;font-weight:600">View &rarr;</a></div>';
@@ -1607,7 +1608,18 @@ function buildPIDashboard() {
     h += '<div class="card">';
     h += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:1rem">';
     h += '<div><div style="font-weight:600;font-size:15px">' + p.project + '</div><div style="font-size:12px;color:#666;margin-top:3px">' + (p.department||'') + ' &middot; ' + typeLabel(p.type) + ' &middot; ' + fmtDate(p.start) + ' &rarr; ' + fmtDate(p.end) + '</div></div>';
-    h += '<span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span></div>';
+    h += '<span class="' + projStatusBadge(p.projectStatus) + '">' + p.projectStatus + '</span>';
+    // Assignment status pill
+    var teamCount = (p.team||[]).length;
+    if (teamCount === 0) {
+      h += ' <span style="font-size:11px;background:#FAEEDA;color:#854F0B;padding:3px 10px;border-radius:20px;font-weight:700">Awaiting assignment</span>';
+    } else {
+      h += ' <span style="font-size:11px;background:#EAF3DE;color:#3B6D11;padding:3px 10px;border-radius:20px;font-weight:700">&#10003; Assigned (' + teamCount + ' staff)</span>';
+    }
+    if (p.projectStatus === 'Project Complete') {
+      h += ' <span style="font-size:11px;background:#F1EFE8;color:#5F5E5A;padding:3px 10px;border-radius:20px;font-weight:700">Complete</span>';
+    }
+    h += '</div>';
     h += '<div class="metrics" style="grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:1rem">';
     h += '<div class="metric"><div class="metric-label">Total hours</div><div class="metric-value mv-blue" style="font-size:18px">' + fmtHrs(ptH) + '</div></div>';
     h += '<div class="metric"><div class="metric-label">Total billed</div><div class="metric-value mv-green" style="font-size:18px">' + fmtMoney(ptB) + '</div></div>';
@@ -1624,10 +1636,52 @@ function buildPIDashboard() {
       Object.keys(bySvc).forEach(function(sv) { h += '<tr><td>' + sv + '</td><td>' + fmtHrs(bySvc[sv].hrs) + '</td><td style="color:#3B6D11;font-weight:500">' + fmtMoney(bySvc[sv].bill) + '</td></tr>'; });
       h += '</tbody></table></div>';
     }
-    // Team skills
-    var tsHtml = '';
-    (p.team||[]).forEach(function(m) { var ps=profileSkillsHtml(m.name); if(ps) tsHtml+='<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:#888;margin-bottom:3px">'+m.name+'</div>'+ps+'</div>'; });
-    if (tsHtml) h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;margin-top:.5rem"><div style="font-size:11px;font-weight:700;color:#888;text-transform:uppercase;margin-bottom:8px">Assigned team &amp; skills</div>' + tsHtml + '</div>';
+    // Team display - rich version with skills
+    if ((p.team||[]).length) {
+      var totalEff = (p.team||[]).reduce(function(a,m){return a+(Number(m.pct)||0);},0);
+      h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;margin-top:.5rem">';
+      h += '<div style="font-size:11px;font-weight:700;color:#185FA5;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">Your assigned DOMStat team</div>';
+      (p.team||[]).forEach(function(m) {
+        var prof = getProfile(m.name);
+        var skills = prof.skills||[];
+        var experts = skills.filter(function(sk){return sk.level==='Expert';});
+        var profs   = skills.filter(function(sk){return sk.level==='Proficient';});
+        h += '<div style="border:1px solid #e0eaf8;border-radius:10px;padding:10px 12px;margin-bottom:8px;background:#f8fbff">';
+        h += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">';
+        h += '<div style="width:34px;height:34px;border-radius:50%;background:#0a1628;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">'+initials(m.name)+'</div>';
+        h += '<div>';
+        h += '<div style="font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">'+m.name;
+        if (m.lead) h += ' <span class="badge badge-lead">Lead</span>';
+        if (m.pct)  h += ' <span style="font-size:11px;background:#EEEDFE;color:#534AB7;padding:2px 7px;border-radius:20px;font-weight:600">'+m.pct+'% effort</span>';
+        h += '</div>';
+        h += '<div style="font-size:11px;color:#888">UCLA DOMStat &middot; Department of Medicine Statistics</div>';
+        h += '</div></div>';
+        if (skills.length) {
+          h += '<div style="display:flex;flex-wrap:wrap;gap:4px">';
+          experts.forEach(function(sk){ h += '<span style="font-size:10px;background:#EAF3DE;color:#3B6D11;padding:2px 8px;border-radius:20px;font-weight:700">★ '+sk.name+'</span>'; });
+          profs.forEach(function(sk){   h += '<span style="font-size:10px;background:#E6F1FB;color:#185FA5;padding:2px 8px;border-radius:20px">'+sk.name+'</span>'; });
+          skills.filter(function(sk){return sk.level==='Beginner';}).forEach(function(sk){
+            h += '<span style="font-size:10px;background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:20px">'+sk.name+'</span>';
+          });
+          h += '</div>';
+        } else {
+          h += '<div style="font-size:11px;color:#bbb;font-style:italic">Skills profile pending</div>';
+        }
+        h += '</div>';
+      });
+      if (totalEff > 0) {
+        h += '<div style="background:#0a1628;border-radius:8px;padding:7px 12px;display:flex;justify-content:space-between;align-items:center;margin-top:4px">';
+        h += '<span style="font-size:12px;color:rgba(255,255,255,.6)">Total DOMStat support</span>';
+        h += '<span style="font-size:14px;font-weight:800;color:#FFD100">'+totalEff+'% effort</span>';
+        h += '</div>';
+      }
+      h += '</div>';
+    } else {
+      h += '<div style="border-top:1px solid #f0f0f0;padding-top:1rem;margin-top:.5rem">';
+      h += '<div style="background:#FAEEDA;border-radius:8px;padding:10px 14px;font-size:13px;color:#854F0B">';
+      h += '<strong>Awaiting assignment</strong> &mdash; A DOMStat team member will be assigned to this project shortly.';
+      h += '</div></div>';
+    }
     h += '</div>';
   });
   if (!myP.length) h += '<div class="card"><div class="empty">No projects found for your email. Contact your DOMStat fund manager.</div></div>';
@@ -1807,10 +1861,40 @@ function buildAPGrouped(list) {
   if (!list.length) return '<div class="empty">No projects match filters.</div>';
   var canFunds = ['fund','admin','director','assocdir'].indexOf(session.role) > -1;
 
-  // Group by PI
+  // Separate new/unassigned projects — show at top
+  var newProjects = list.filter(function(p){ return p.projectStatus==='New Project'; });
+  var otherProjects = list.filter(function(p){ return p.projectStatus!=='New Project'; });
+
+  var h2 = '';
+  if (newProjects.length) {
+    h2 += '<div style="margin-bottom:1.5rem">';
+    h2 += '<div style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:#FAEEDA;border-radius:10px 10px 0 0;border-left:4px solid #EF9F27">';
+    h2 += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#854F0B" stroke-width="2"/><path d="M12 8v4M12 16h.01" stroke="#854F0B" stroke-width="2" stroke-linecap="round"/></svg>';
+    h2 += '<span style="font-size:12px;font-weight:700;color:#854F0B;text-transform:uppercase;letter-spacing:.06em">Awaiting assignment ('+newProjects.length+')</span></div>';
+    newProjects.forEach(function(p, idx){
+      var isLast=idx===newProjects.length-1;
+      h2 += '<div style="border:1px solid #EF9F27;border-top:none;'+(isLast?'border-radius:0 0 10px 10px;':'')+'background:#FFFDF7;padding:12px 16px;cursor:pointer" data-detail="'+p.id+'">';
+      h2 += '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">';
+      h2 += '<div>';
+      h2 += '<div style="font-weight:600;font-size:13px;margin-bottom:4px">'+p.project+'</div>';
+      h2 += '<div style="display:flex;flex-wrap:wrap;gap:5px">';
+      h2 += '<span class="'+typeBadge(p.type)+'">'+typeLabel(p.type)+'</span>';
+      h2 += '<span style="font-size:11px;background:#FAEEDA;color:#854F0B;padding:2px 8px;border-radius:20px;font-weight:600">New — awaiting assignment</span>';
+      h2 += durationTagHtml(p);
+      if(p.department) h2 += '<span style="font-size:11px;color:#888;background:#f5f5f5;padding:2px 8px;border-radius:20px">'+p.department+'</span>';
+      h2 += '</div></div>';
+      h2 += '<div style="text-align:right;flex-shrink:0">';
+      h2 += '<div style="font-size:11px;color:#888">PI: '+p.pi+'</div>';
+      h2 += '<div style="font-size:11px;color:#aaa;margin-top:2px">Submitted: '+fmtDate(p.submittedDate)+'</div>';
+      h2 += '</div></div></div>';
+    });
+    h2 += '</div>';
+  }
+
+  // Group remaining by PI
   var byPI = {};
   var piOrder = [];
-  list.forEach(function(p) {
+  otherProjects.forEach(function(p) {
     if (!byPI[p.pi]) { byPI[p.pi] = []; piOrder.push(p.pi); }
     byPI[p.pi].push(p);
   });
@@ -1880,7 +1964,7 @@ function buildAPGrouped(list) {
     h += '</div>';
   });
 
-  return h;
+  return h2 + h;
 }
 
 function attachAPHandlers() {
@@ -2336,46 +2420,84 @@ function saveEditProject(pid) {
 function buildIntake() {
   intakeTeam = [];
   var isPublic = session.role === 'public';
-  var deptOpts = '<option value="">Select department...</option>'; DEPTS.forEach(function(d){deptOpts+='<option>'+d+'</option>';});
+  var deptOpts = '<option value="">Select department...</option>';
+  DEPTS.forEach(function(d){ deptOpts += '<option>'+d+'</option>'; });
+
   var h = '<div class="card"><div class="card-title">Submit a new project collaboration</div>';
-  h += '<p style="font-size:13px;color:#666;margin-bottom:1.25rem">Fields marked * are required.</p>';
+  h += '<p style="font-size:13px;color:#666;margin-bottom:1.25rem">Fields marked * are required. Your project will appear at the top of the queue while awaiting assignment.</p>';
   h += '<div class="form-grid">';
   h += '<div class="form-group"><label>Submitter name *</label><input id="f_sub" placeholder="Your name"></div>';
   h += '<div class="form-group"><label>PI name *</label><input id="f_pi" placeholder="Principal Investigator"></div>';
-  h += '<div class="form-group"><label>PI email' + (isPublic?' *':'') + '</label><input id="f_piemail" type="email" placeholder="pi@mednet.ucla.edu"></div>';
-  h += '<div class="form-group"><label>Department *</label><select id="f_dept">' + deptOpts + '</select></div>';
+  h += '<div class="form-group"><label>PI email'+(isPublic?' *':'')+'</label><input id="f_piemail" type="email" placeholder="pi@mednet.ucla.edu"></div>';
+  h += '<div class="form-group"><label>Department *</label><select id="f_dept">'+deptOpts+'</select></div>';
   h += '<div class="form-group full"><label>Project / grant title *</label><input id="f_project" placeholder="Full project title"></div>';
   h += '<div class="form-group"><label>Grant number</label><input id="f_grant" placeholder="e.g. R01AI123456"></div>';
   h += '<div class="form-group"><label>FAU (Financial Account Unit)</label><input id="f_fau" placeholder="Free text FAU"></div>';
   h += '<div class="form-group"><label>Fund manager name</label><input id="f_fmname" placeholder="Fund manager"></div>';
   h += '<div class="form-group"><label>Fund manager email</label><input id="f_fmemail" type="email" placeholder="fm@mednet.ucla.edu"></div>';
-  h += '<div class="form-group"><label>Collaboration type *</label><select id="f_type"><option value="">Select type...</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select></div>';
-  h += '<div class="form-group" id="f_val_group" style="display:none"><label>Total dollar value ($)</label><input id="f_val" type="number" placeholder="e.g. 25000"></div>';
-  if (isPublic) h += '<div class="form-group"><label>Set a 4-digit PIN *</label><input id="f_pin" type="password" maxlength="4" placeholder="4 digits" pattern="[0-9]{4}" inputmode="numeric"></div>';
+
+  // Collaboration type with CTSI note
+  h += '<div class="form-group full">';
+  h += '<label>Collaboration type *</label>';
+  h += '<select id="f_type"><option value="">Select type...</option><option value="pct">% Effort</option><option value="hr">Hourly Recharge</option><option value="ctsi">CTSI</option></select>';
+  h += '</div>';
+
+  // Budget fields — shown based on type
+  h += '<div class="form-group" id="f_val_group" style="display:none"><label>Total project value ($)</label><input id="f_val" type="number" placeholder="e.g. 25000"></div>';
+  h += '<div class="form-group" id="f_budget_group" style="display:none"><label>Budget target ($)</label><input id="f_budget" type="number" placeholder="e.g. 10000"></div>';
+
+  // CTSI info box — hidden by default
+  h += '<div class="form-group full" id="f_ctsi_note" style="display:none">';
+  h += '<div style="background:#EAF3DE;border-left:4px solid #3B6D11;border-radius:8px;padding:14px 16px;font-size:13px;color:#27500A">';
+  h += '<div style="font-weight:700;margin-bottom:6px">About CTSI collaborations</div>';
+  h += '<ul style="margin:0;padding-left:1.25rem;line-height:1.8">';
+  h += '<li>The <strong>first 10 hours</strong> of CTSI collaboration are <strong>complimentary</strong> via the CTSI program.</li>';
+  h += '<li>Beyond 10 hours, the project <strong>defaults to Hourly Recharge billing</strong> at the standard DOMStat rate.</li>';
+  h += '<li><strong>Grant preparation is an exception</strong> \u2014 it is always a complimentary service with no hour restriction.</li>';
+  h += '</ul></div></div>';
+
+  if (isPublic) {
+    h += '<div class="form-group"><label>Set a 4-digit PIN *</label><input id="f_pin" type="password" maxlength="4" placeholder="4 digits" pattern="[0-9]{4}" inputmode="numeric"></div>';
+  }
+
   if (!isPublic) {
     var allStaff = STAFF.concat(FACULTY);
     var staffOpts = '<option value="">Add staff member...</option>';
-    allStaff.forEach(function(s) { var woc=(getProfile(s).skills||[]).some(function(sk){return sk.name==='WOC (VA Authorization)';}); staffOpts+='<option value="'+s+'">'+s+(woc?' &#127973;':'')+'</option>'; });
+    allStaff.forEach(function(st){ var woc=(getProfile(st).skills||[]).some(function(sk){return sk.name==='WOC (VA Authorization)';}); staffOpts+='<option value="'+st+'">'+st+(woc?' \u{1F3E5}':'')+'</option>'; });
     h += '<div class="form-group full"><label>Team assignment * <span style="font-size:11px;font-weight:400;color:#888">(first person added becomes Lead)</span></label>';
     h += '<div id="intakeTeamBuilder" style="margin-bottom:8px"><div style="font-size:12px;color:#999;padding:8px;background:#f9f9f9;border-radius:8px">No team members added yet.</div></div>';
-    h += '<div style="display:flex;gap:6px;flex-wrap:wrap"><select id="addStaffSel" style="flex:1;min-width:180px">' + staffOpts + '</select>';
+    h += '<div style="display:flex;gap:6px;flex-wrap:wrap"><select id="addStaffSel" style="flex:1;min-width:180px">'+staffOpts+'</select>';
     h += '<div id="pctWrap" style="display:none"><input id="addPct" type="number" min="1" max="100" placeholder="%" style="width:70px;padding:5px 8px;font-size:13px;border:1px solid #ccc;border-radius:6px"></div>';
     h += '<button class="btn btn-sm btn-primary" id="addTeamIntakeBtn">Add</button></div>';
     h += '<div class="err-msg" id="teamError">Please add at least one team member.</div></div>';
   }
+
   h += '<div class="form-group"><label>Start date *</label><input id="f_start" type="date"></div>';
   h += '<div class="form-group"><label>End date *</label><input id="f_end" type="date"></div>';
-  h += '<div class="form-group full"><label>Notes</label><textarea id="f_notes" placeholder="Additional context..."></textarea></div>';
-  h += '</div><div class="actions"><button class="btn btn-primary" id="submitProjBtn2">Submit project</button></div></div>';
+  h += '<div class="form-group full"><label>Notes / description</label><textarea id="f_notes" placeholder="Describe the scope, services needed, or any relevant context..."></textarea></div>';
+  h += '</div>';
+  h += '<div class="actions"><button class="btn btn-primary" id="submitProjBtn2">Submit project</button></div></div>';
+
   sh('pageContainer', h);
+
   el('f_type').addEventListener('change', function() {
-    el('f_val_group').style.display = this.value === 'pct' ? 'block' : 'none';
-    var pw = el('pctWrap'); if (pw) pw.style.display = this.value === 'pct' ? 'block' : 'none';
+    var t = this.value;
+    var valG = el('f_val_group');
+    var budG = el('f_budget_group');
+    var ctsiN = el('f_ctsi_note');
+    var pw = el('pctWrap');
+    if (valG) valG.style.display = t === 'pct' ? 'block' : 'none';
+    if (budG) budG.style.display = t === 'hr' ? 'block' : 'none';
+    if (ctsiN) ctsiN.style.display = t === 'ctsi' ? 'block' : 'none';
+    if (pw) pw.style.display = t === 'pct' ? 'block' : 'none';
     renderIntakeTeam();
   });
+
   el('submitProjBtn2').addEventListener('click', submitProject);
-  var aitb = el('addTeamIntakeBtn'); if (aitb) aitb.addEventListener('click', addTeamMember);
+  var aitb = el('addTeamIntakeBtn');
+  if (aitb) aitb.addEventListener('click', addTeamMember);
 }
+
 
 function renderIntakeTeam() {
   var tb = el('intakeTeamBuilder'); if (!tb) return;
@@ -2405,36 +2527,72 @@ function addTeamMember() {
 }
 
 function submitProject() {
-  var sub=gv('f_sub').trim(), pi=gv('f_pi').trim(), proj=gv('f_project').trim();
-  var type=gv('f_type'), start=gv('f_start'), end=gv('f_end'), dept=gv('f_dept');
+  var sub=gv('f_sub').trim(),pi=gv('f_pi').trim(),proj=gv('f_project').trim();
+  var type=gv('f_type'),start=gv('f_start'),end=gv('f_end'),dept=gv('f_dept');
   var isPublic=session.role==='public';
-  var piEmail=gv('f_piemail').trim(), pin=gv('f_pin')||'';
-  if (!sub||!pi||!proj||!type||!start||!end||!dept) { alert('Please fill in all required fields (*).'); return; }
-  if (isPublic&&(!piEmail||!pin||pin.length!==4||!/^[0-9]{4}$/.test(pin))) { alert('PI email and 4-digit PIN are required.'); return; }
-  if (!isPublic&&!intakeTeam.length) { el('teamError').style.display='block'; return; }
-  var bv=parseFloat(gv('f_val'))||null;
-  var record={id:String(nextIds.proj++),pi:pi,project:proj,type:type,department:dept,
-    grant:gv('f_grant')||'',fau:gv('f_fau')||'',start:start,end:end,
-    totalValue:type==='pct'?bv:null,fundsReceived:0,budgetTarget:bv,
-    status:new Date(start)>new Date()?'upcoming':'active',projectStatus:'New Project',
-    piEmail:piEmail,fmName:gv('f_fmname')||'',fmEmail:gv('f_fmemail')||'',
-    notes:gv('f_notes')||'',submittedBy:sub,submittedDate:new Date().toISOString().split('T')[0],
-    fundManagerStatus:'pending',piPin:pin,
-    lead:isPublic?'':(intakeTeam.filter(function(m){return m.lead;})[0]||{name:''}).name,
-    team:isPublic?[]:intakeTeam};
+  var piEmail=gv('f_piemail').trim(),pin=gv('f_pin')||'';
+  if(!sub||!pi||!proj||!type||!start||!end||!dept){alert('Please fill in all required fields (*).'); return;}
+  if(isPublic&&(!piEmail||!pin||pin.length!==4||!/^[0-9]{4}$/.test(pin))){alert('PI email and 4-digit PIN are required.'); return;}
+  if(!isPublic&&!intakeTeam.length){el('teamError').style.display='block'; return;}
+
+  var totalVal = parseFloat(gv('f_val'))||null;
+  var budgetTarget = parseFloat(gv('f_budget'))||null;
+
+  var record={
+    id:String(nextIds.proj++),pi:pi,project:proj,type:type,department:dept,
+    grant:gv('f_grant')||'',fau:gv('f_fau')||'',
+    start:start,end:end,
+    totalValue:totalVal,
+    fundsReceived:null,
+    budgetTarget:budgetTarget,
+    status:'upcoming',
+    fundManagerStatus:'pending',
+    invoiceStatus:'pending',
+    projectStatus:'New Project',
+    piEmail:piEmail,
+    fmName:gv('f_fmname')||'',
+    fmEmail:gv('f_fmemail')||'',
+    piPin:pin,
+    notes:gv('f_notes')||'',
+    submittedBy:sub,
+    submittedDate:new Date().toISOString().split('T')[0],
+    lead:'',team:isPublic?[]:intakeTeam,
+    confirmedServices:[],scopeSummary:'',estimatedHours:null,
+    projectStage:'Scoping',internalNotes:'',nextSteps:'',
+    scopeOther:'',scopeUpdatedBy:'',scopeUpdatedDate:''
+  };
+
   projects.push(record);
-  saveRecord('add',projectToRow(record),'Sheet1').then(function(ok) {
-    openModal('<div class="modal-title">Submission received</div>' +
-      '<div class="alert ' + (ok?'alert-ok':'alert-warn') + '" style="margin-bottom:1rem">' + (ok?'Saved to Google Sheets.':'Saved locally — check connection.') + '</div>' +
-      '<p style="font-size:13px;color:#555;margin-bottom:4px"><strong>Project:</strong> ' + proj + '</p>' +
-      '<p style="font-size:13px;color:#555;margin-bottom:' + (isPublic?'1rem':'4px') + '"><strong>PI:</strong> ' + pi + '</p>' +
-      (isPublic?'<p style="font-size:13px;color:#555;margin-bottom:1rem">Use your email and PIN to view your account at any time.</p>':'') +
-      '<div class="actions">' +
-      (isPublic?'<button class="btn btn-primary" id="trackBtn">Track my submission</button>':'') +
-      '<button class="btn ' + (isPublic?'':'btn-primary') + '" id="anotherBtn">Submit another</button></div>');
-    var tb = el('trackBtn'); if (tb) tb.addEventListener('click', function() { closeModal(); renderPage('mystatus'); });
-    el('anotherBtn').addEventListener('click', function() { closeModal(); renderPage('intake'); });
-  });
+  saveRecord('add',projectToRow(record),'Sheet1');
+
+  // Send notification to admin/director/assocdir
+  var alertRec = {
+    id: String(Date.now())+'_newproj',
+    staffName: '__admin__',
+    type: 'new_project',
+    projectId: record.id,
+    projectName: record.project,
+    pi: record.pi,
+    message: 'New project submitted by '+sub+': '+record.project+' (PI: '+pi+')',
+    assignedBy: sub,
+    assignedDate: record.submittedDate,
+    read: 'no'
+  };
+  notifications.push(alertRec);
+  saveRecord('add', alertRec, 'notifications');
+
+  // Show confirmation
+  if(isPublic){
+    sh('pageContainer','<div class="card" style="text-align:center;padding:2rem">'
+      +'<div style="font-size:22px;margin-bottom:8px">\u2705</div>'
+      +'<div style="font-size:16px;font-weight:600;margin-bottom:8px">Project submitted!</div>'
+      +'<div style="font-size:13px;color:#666;margin-bottom:1.5rem">Thank you, <strong>'+sub+'</strong>. Your project <strong>'+proj+'</strong> has been received. Use your PIN <strong>'+pin+'</strong> and email <strong>'+piEmail+'</strong> to track its status.</div>'
+      +'<button class="btn btn-primary" id="backToLoginBtn">Return to home</button></div>');
+    el('backToLoginBtn').addEventListener('click', showLogin);
+  } else {
+    alert('Project "'+proj+'" submitted successfully. It will appear at the top of All Projects while awaiting assignment.');
+    renderPage('allprojects');
+  }
 }
 
 
