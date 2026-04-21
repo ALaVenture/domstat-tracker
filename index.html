@@ -791,7 +791,7 @@ function showLogin() {
   h += '<div>';
   h += '<div class="llogo-row">' + logoSvg + '<div><div class="llogo-text"><span>UCLA</span> DOMStat</div><div class="llogo-portal">Collaboration Portal</div><div class="llogo-sub">Department of Medicine Statistics Core</div></div></div>';
   h += '<div class="linfo-cards">';
-  h += '<div class="linfo-block"><div class="linfo-icon">\uD83D\uDD2C</div><div class="linfo-title">New to DOMStat?</div><div class="linfo-text">Use <strong>Submit a project</strong> to formally engage DOMStat. Need to discuss first? Contact us at <strong>domstat@mednet.ucla.edu</strong>.</div></div>';
+  h += '<div class="linfo-block"><div class="linfo-icon">\uD83D\uDD2C</div><div class="linfo-title">New to DOMStat?</div><div class="linfo-text">Use <strong>Request a consultation</strong> \u2014 just your name, email, and what you\'re working on. No project details needed.</div></div>';
   h += '<div class="linfo-block"><div class="linfo-icon">\uD83D\uDCCB</div><div class="linfo-title">Ready to get started?</div><div class="linfo-text">Use <strong>Set up a new project</strong> once you have your staffing need identified, grant info, and FAU. This is the formal engagement step.</div></div>';
   h += '<div class="linfo-block"><div class="linfo-icon">\uD83D\uDCCA</div><div class="linfo-title">Existing collaborator?</div><div class="linfo-text">Use <strong>View my account</strong> to check hours billed, project status, and team details using your email and PIN.</div></div>';
   h += '<div class="linfo-block"><div class="linfo-icon">\uD83C\uDFEB</div><div class="linfo-title">DOMStat team member?</div><div class="linfo-text">Sign in via the <strong>Staff</strong> or <strong>Faculty</strong> tabs for full portal access.</div></div>';
@@ -809,7 +809,7 @@ function showLogin() {
   h += '<div id="lp-public">';
   h += '<button class="lbig-btn lbig-btn-primary" data-action="submit-public"><div class="lbtn-icon">\uD83D\uDCCB</div><div class="lbtn-body"><div class="lbtn-title">Submit a project</div><div class="lbtn-sub">Ready to engage DOMStat \u2014 have your project details &amp; FAU</div></div><div class="lbtn-arrow">\u203A</div></button>';
   h += '<button class="lbig-btn lbig-btn-outline" data-action="view-public"><div class="lbtn-icon">\uD83D\uDCCA</div><div class="lbtn-body"><div class="lbtn-title">My submissions</div><div class="lbtn-sub">View your submitted projects with email + PIN</div></div><div class="lbtn-arrow">\u203A</div></button>';
-  h += '<div style="text-align:center;margin-top:10px"><span style="font-size:12px;color:#aaa">Not sure yet? </span><button style="font-size:12px;color:#185FA5;background:none;border:none;cursor:pointer;text-decoration:underline;padding:0" data-action="consult">Request a quick consultation</button></div>';
+  h += '<button class="lbig-btn lbig-btn-ghost" data-action="consult"><div class="lbtn-icon">\uD83D\uDD2C</div><div class="lbtn-body"><div class="lbtn-title">Request a consultation</div><div class="lbtn-sub">Quick first contact \u2014 no project details needed</div></div><div class="lbtn-arrow">\u203A</div></button>';
   h += '</div>';h += '<div id="lp-staff" style="display:none">';
   h += '<div class="form-group" style="margin-bottom:12px"><label>Your name</label><select id="ln-staff">' + staffOpts + '</select></div>';
   h += '<div class="form-group" style="margin-bottom:12px"><label>Access level</label><select id="lr-staff"><option value="staff">\uD83D\uDC64 Staff</option><option value="staffmgr">\uD83D\uDCCB Staff Manager</option></select></div>';
